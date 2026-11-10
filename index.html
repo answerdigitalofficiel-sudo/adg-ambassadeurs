@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1f3c">
+<meta name="description" content="ADG Ambassadeurs — le programme ambassadeurs d'Answer Digital">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ADG Ambassadeurs">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>ADG Ambassadeurs — Answer Digital</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f1f5f9;--card:#fff;--tx:#0b1f3c;--mu:#64748b;--nv:#0b1f3c;--ac:#a3e635;--cy:#22d3ee;--on:#0b1f3c;--lk:#0e7490;--bd:#e2e8f0;--ok:#16a34a;--wa:#d97706;--ko:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#07142a;--card:#0e2145;--tx:#e5eaf3;--mu:#93a4c3;--on:#a3e635;--lk:#22d3ee;--bd:#1b3260}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+header{background:var(--nv);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;border-bottom:3px solid var(--ac)}
+header b{font-size:16px;display:block;line-height:1.1}header button{background:rgba(255,255,255,.14);color:#fff;border:0;padding:6px 12px;border-radius:8px;margin-left:6px}
+.brand{display:flex;align-items:center;gap:10px}.brand small{display:block;color:var(--ac);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.hello{margin:4px 0 12px;font-size:20px;font-weight:700}
+main{max-width:980px;margin:0 auto;padding:14px 14px 90px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px}
+.kpi small{color:var(--mu);display:block}.kpi b{font-size:24px}
+h2{font-size:16px;margin:0 0 10px}
+input,select,textarea{width:100%;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font-size:15px;margin-bottom:8px}
+button.p{background:var(--ac);color:var(--nv);font-weight:700;border:0;padding:11px 16px;border-radius:10px;font-size:15px;width:100%}
+button.s{border:1px solid var(--bd);background:transparent;color:var(--tx);padding:6px 10px;border-radius:8px;font-size:13px}
+button.ok{background:var(--ok);color:#fff;border:0;padding:7px 11px;border-radius:8px;font-size:13px}
+button.ko{background:var(--ko);color:#fff;border:0;padding:7px 11px;border-radius:8px;font-size:13px}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;z-index:5}
+nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--mu);font-size:12px}
+nav button.on{color:var(--on);font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}.row small{color:var(--mu)}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;color:#fff}
+.t-pending{background:var(--wa)}.t-validated{background:var(--ok)}.t-rejected{background:var(--ko)}
+.up{color:var(--ok)}.down{color:var(--ko)}
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#0b1f3c;border-left:5px solid #a3e635;color:#fff;padding:12px 16px;border-radius:12px;z-index:20;max-width:90%;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.auth{max-width:380px;margin:8vh auto;padding:0 14px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+a{color:var(--lk)}.mu{color:var(--mu)}.err{color:var(--ko);font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 4px;text-align:left;border-bottom:1px solid var(--bd)}th{color:var(--mu);font-weight:500}
+.sig{display:flex;align-items:center;justify-content:center;gap:8px;margin:22px 0 4px;color:var(--mu);font-size:12px;text-align:center}
+.sig b{color:var(--tx)}
+.authbrand{background:var(--nv);border-radius:18px;padding:24px 16px 18px;text-align:center;margin-bottom:12px;border-bottom:4px solid var(--ac)}
+.w1{color:#fff;font-weight:800;letter-spacing:6px;font-size:26px;margin-top:14px}
+.w2{color:#a3e635;letter-spacing:9px;font-size:13px;margin-top:2px}
+.w3{color:#8aa0c0;font-size:12px;margin-top:10px}
+.cyl{width:60px;height:3px;background:#22d3ee;margin:10px auto 0;border-radius:2px}
+.an rect{transform-box:fill-box;transform-origin:center;animation:pop .45s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+#splash{position:fixed;inset:0;background:#0b1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
+#splash.off{opacity:0}
+</style>
+</head>
+<body>
+<div id="splash"></div>
+<div id="app"></div>
+<script>
+/* ====== CONFIGURATION : remplacez par vos valeurs Supabase (Settings > API) ====== */
+const CFG = { URL: 'https://kearpnvypzztnnltmrpp.supabase.co', KEY: 'sb_publishable_whfpzyuXH1Qup_q2h5wPdg_QY9uKqpA' };
+/* ================================================================================ */
+
+const sb = window.supabase.createClient(CFG.URL, CFG.KEY);
+let me = null, D = {}, tab = 'home', F = { amb: '', status: '' }, authMode = 'login', charts = {}, chan = null, deferredInstall = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtD = d => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' });
+const mk = s => { const d = new Date(s); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+const months = (n = 6) => { const a = [], d = new Date(); for (let i = n - 1; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); a.push(x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0')); } return a; };
+const label = m => { const [y, mo] = m.split('-'); return new Date(y, mo - 1, 1).toLocaleDateString('fr-FR', { month: 'short' }); };
+const stLabel = { pending: 'En attente', validated: 'Validé', rejected: 'Rejeté' };
+const tag = s => `<span class="tag t-${s}">${stLabel[s]}</span>`;
+const wa = p => 'https://wa.me/' + String(p || '').replace(/\D/g, '');
+const trend = (cur, prev) => prev === 0 ? (cur > 0 ? '<span class="up">▲ nouveau</span>' : '<span class="mu">—</span>') : (cur >= prev ? `<span class="up">▲ ${Math.round((cur - prev) / prev * 100)}%</span>` : `<span class="down">▼ ${Math.round((prev - cur) / prev * 100)}%</span>`);
+
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 6000); try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==').play(); } catch (e) {} }
+function drawChart(id, cfg) { const el = document.getElementById(id); if (!el) return; if (charts[id]) charts[id].destroy(); charts[id] = new Chart(el, cfg); }
+/* ---------- Identité Answer Digital ---------- */
+const CELLS = [[2,0,'#a3e635'],[3,0,'#bef264'],[4,0,'#bef264'],[1,1,'#4ade80'],[2,1,'#a3e635'],[3,1,'#a3e635'],[4,1,'#bef264'],[1,2,'#4ade80'],[2,2,'#4ade80'],[3,2,'#a3e635'],[0,3,'#2dd4bf'],[1,3,'#2dd4bf'],[2,3,'#4ade80'],[0,4,'#22d3ee']];
+const LOGO = (s = 32, anim = false) => `<svg class="${anim ? 'an' : ''}" width="${s}" height="${s}" viewBox="0 0 325 325" aria-label="Answer Digital">${CELLS.map(([c, r, f], i) => `<rect x="${c * 67}" y="${r * 67}" width="58" height="58" rx="13" fill="${f}" ${anim ? `style="animation-delay:${i * 0.06}s"` : ''}/>`).join('')}</svg>`;
+const sig = () => `<div class="sig">${LOGO(18)}<span><b>Answer Digital</b> · Technology. Innovation. Solutions.</span></div>`;
+$('#splash').innerHTML = `${LOGO(110, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">ADG Ambassadeurs</div>`;
+const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div><button id="inst" onclick="installApp()" style="display:${deferredInstall ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
+
+/* ---------- AUTH ---------- */
+function showAuth(err = '') {
+  $('#app').innerHTML = `<div class="auth"><div class="authbrand">${LOGO(84, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">Technology. Innovation. Solutions.</div></div><div class="card"><h2 style="text-align:center">ADG Ambassadeurs</h2>
+  <div class="tabs"><button class="s" onclick="authMode='login';showAuth()" ${authMode === 'login' ? 'style="border-color:var(--ac)"' : ''}>Connexion</button>
+  <button class="s" onclick="authMode='signup';showAuth()" ${authMode === 'signup' ? 'style="border-color:var(--ac)"' : ''}>Inscription</button></div>
+  <form onsubmit="doAuth(event)">
+  ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' : ''}
+  <input id="em" type="email" placeholder="Email" required><input id="pw" type="password" placeholder="Mot de passe (6+ caractères)" minlength="6" required>
+  <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form></div>${sig()}</div>`;
+}
+async function doAuth(e) {
+  e.preventDefault();
+  const email = $('#em').value.trim(), password = $('#pw').value;
+  let r;
+  if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim() } } });
+  else r = await sb.auth.signInWithPassword({ email, password });
+  if (r.error) return showAuth(r.error.message);
+  if (!r.data.session) return showAuth('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
+  boot();
+}
+async function logout() { if (chan) sb.removeChannel(chan); await sb.auth.signOut(); me = null; showAuth(); }
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return showAuth();
+  const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+  if (error || !data) return showAuth('Profil introuvable.');
+  me = data; tab = 'home';
+  if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); }
+  else { await loadAmb(); renderAmb(); subAmb(); }
+}
+
+/* ================= AMBASSADEUR ================= */
+async function loadAmb() {
+  const [led, sales, notifs, apps] = await Promise.all([
+    sb.from('points_ledger').select('*, sales(client_name, apps(name))').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
+    sb.from('sales').select('*, apps(name)').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
+    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
+    sb.from('apps').select('*').eq('active', true)
+  ]);
+  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [] };
+}
+function subAmb() {
+  chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
+    async p => { toast('🎉 ' + p.new.message); await loadAmb(); renderAmb(); }).subscribe();
+}
+function renderAmb() {
+  const total = D.led.reduce((a, l) => a + l.points, 0);
+  const ms = months(), cur = ms[5], prev = ms[4];
+  const sm = m => D.led.filter(l => mk(l.created_at) === m).reduce((a, l) => a + l.points, 0);
+  const nm = m => D.sales.filter(s => s.status === 'validated' && mk(s.validated_at || s.created_at) === m).length;
+  const pend = D.sales.filter(s => s.status === 'pending').length;
+  const link = location.origin + location.pathname.replace(/[^/]*$/, '');
+  let body = '';
+  if (tab === 'home') body = `
+    <div class="grid"><div class="kpi"><small>Mes points</small><b>${total}</b></div>
+    <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
+    <div class="kpi"><small>En attente</small><b>${pend}</b></div>
+    <div class="kpi"><small>Ce mois vs dernier</small><b>${sm(cur)}</b> ${trend(sm(cur), sm(prev))}</div></div>
+    <div class="card" style="margin-top:12px"><h2>Mon code ambassadeur</h2><b style="font-size:22px;letter-spacing:1px">${esc(me.referral_code)}</b>
+    <p class="mu" style="margin:6px 0">Donnez ce code à vos clients : ils le saisissent à l'inscription dans l'application achetée.</p>
+    <button class="s" onclick="navigator.clipboard.writeText('${esc(me.referral_code)}');toast('Code copié')">Copier le code</button></div>
+    <div class="card"><h2>Évolution des points (6 mois)</h2><canvas id="c1" height="170"></canvas></div>
+    <div class="card"><h2>Notifications</h2>${D.notifs.length ? D.notifs.map(n => `<div class="row"><div>${esc(n.message)}<br><small>${fmtD(n.created_at)}</small></div></div>`).join('') : '<p class="mu">Rien pour le moment.</p>'}</div>`;
+  if (tab === 'clients') body = `<div class="card"><h2>Mes clients (${D.sales.length})</h2>${D.sales.length ? D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? 'Cash' : 'Mobile money'} · ${fmtD(s.created_at)}</small></div><b>${s.status === 'validated' ? '+' + (D.led.find(l => l.sale_id === s.id)?.points ?? 0) : ''}</b></div>`).join('') : '<p class="mu">Aucun client pour l\'instant.</p>'}</div>`;
+  if (tab === 'add') body = `<div class="card"><h2>Déclarer un client (paiement cash)</h2><p class="mu">Après avoir encaissé le cash, déclarez le client ici puis contactez l'administrateur pour l'activation. Vos points arrivent dès la validation.</p>${saleForm(false)}</div>`;
+  if (tab === 'pts') body = `<div class="card"><h2>Historique des points — Total : ${total}</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">+${l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
+    <div class="card"><h2>Clients validés par mois</h2><canvas id="c2" height="170"></canvas></div>`;
+  $('#app').innerHTML = shell('Bonjour ' + esc(me.full_name.split(' ')[0] || ''), body,
+    `<nav>${[['home', '🏠 Accueil'], ['clients', '👥 Clients'], ['pts', '⭐ Points'], ['add', '➕ Cash']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAmb()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(sm), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+  if (tab === 'pts') drawChart('c2', { type: 'bar', data: { labels: ms.map(label), datasets: [{ label: 'Clients', data: ms.map(nm), backgroundColor: '#2dd4bf' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+/* ---------- Formulaire vente (cash) ---------- */
+function saleForm(admin) {
+  return `<form onsubmit="addSale(event,${admin})">
+  ${admin ? `<select id="sa">${'<option value="">— Client direct (sans ambassadeur) —</option>' + (D.ambs || []).map(a => `<option value="${a.id}">${esc(a.full_name)} (${esc(a.referral_code)})</option>`).join('')}</select>` : ''}
+  <input id="sn" placeholder="Nom complet du client" required><input id="sp" placeholder="Téléphone du client" required>
+  <select id="sx" required>${(D.apps || []).map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+  <select id="sm"><option value="cash">Cash</option><option value="mobile_money">Mobile money</option></select>
+  <input id="sv" type="number" step="0.01" placeholder="Montant (optionnel)"><input id="so" placeholder="Note (optionnel)">
+  <button class="p">Enregistrer</button></form>`;
+}
+async function addSale(e, admin) {
+  e.preventDefault();
+  const row = { client_name: $('#sn').value.trim(), client_phone: $('#sp').value.trim(), app_id: $('#sx').value, payment_method: $('#sm').value, amount: $('#sv').value || null, note: $('#so').value || null, status: 'pending', ambassador_id: admin ? ($('#sa').value || null) : me.id };
+  const { error } = await sb.from('sales').insert(row);
+  if (error) return alert(error.message);
+  toast('Client enregistré (en attente de validation)');
+  tab = admin ? 'sales' : 'clients';
+  if (admin) { await loadAdmin(); renderAdmin(); } else { await loadAmb(); renderAmb(); }
+}
+
+/* ================= ADMIN ================= */
+async function loadAdmin() {
+  const [sales, ambs, led, apps] = await Promise.all([
+    sb.from('sales').select('*, apps(name), profiles(full_name, referral_code, phone)').order('created_at', { ascending: false }),
+    sb.from('profiles').select('*').eq('role', 'ambassador').order('created_at'),
+    sb.from('points_ledger').select('*'),
+    sb.from('apps').select('*').order('name')
+  ]);
+  D = { sales: sales.data || [], ambs: ambs.data || [], led: led.data || [], apps: apps.data || [] };
+}
+function subAdmin() {
+  chan = sb.channel('adm').on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, async p => {
+    if (p.eventType === 'INSERT') toast('🔔 Nouvelle demande : ' + p.new.client_name);
+    await loadAdmin(); renderAdmin();
+  }).subscribe();
+}
+const ambStats = a => {
+  const ms = months(), mine = D.sales.filter(s => s.ambassador_id === a.id), v = mine.filter(s => s.status === 'validated');
+  const pts = D.led.filter(l => l.ambassador_id === a.id);
+  const c = m => v.filter(s => mk(s.validated_at || s.created_at) === m).length;
+  return { total: v.length, pending: mine.filter(s => s.status === 'pending').length, points: pts.reduce((x, l) => x + l.points, 0), cur: c(ms[5]), prev: c(ms[4]), last: v[0]?.validated_at || v[0]?.created_at };
+};
+function renderAdmin() {
+  const ms = months();
+  const pend = D.sales.filter(s => s.status === 'pending').length;
+  const val = D.sales.filter(s => s.status === 'validated');
+  let body = '';
+  if (tab === 'home') {
+    const rev = val.reduce((a, s) => a + (+s.amount || 0), 0);
+    const viaAmb = val.filter(s => s.ambassador_id).length;
+    body = `<div class="grid"><div class="kpi"><small>À valider</small><b style="color:var(--wa)">${pend}</b></div><div class="kpi"><small>Ventes validées</small><b>${val.length}</b></div>
+    <div class="kpi"><small>Via ambassadeurs</small><b>${val.length ? Math.round(viaAmb / val.length * 100) : 0}%</b></div><div class="kpi"><small>Ambassadeurs</small><b>${D.ambs.length}</b></div>
+    <div class="kpi"><small>Montant validé</small><b>${rev}</b></div></div>
+    <div class="card" style="margin-top:12px"><h2>Ventes validées / mois</h2><canvas id="c1" height="170"></canvas></div>
+    <div class="card"><h2>Classement ambassadeurs (points)</h2><canvas id="c2" height="${Math.max(120, D.ambs.length * 30)}"></canvas></div>`;
+  }
+  if (tab === 'sales') {
+    let list = D.sales.filter(s => (!F.amb || (F.amb === 'none' ? !s.ambassador_id : s.ambassador_id === F.amb)) && (!F.status || s.status === F.status));
+    body = `<div class="card"><select onchange="F.amb=this.value;renderAdmin()"><option value="">Tous les ambassadeurs</option><option value="none" ${F.amb === 'none' ? 'selected' : ''}>Clients directs</option>${D.ambs.map(a => `<option value="${a.id}" ${F.amb === a.id ? 'selected' : ''}>${esc(a.full_name)}</option>`).join('')}</select>
+    <select onchange="F.status=this.value;renderAdmin()">${['', 'pending', 'validated', 'rejected'].map(s => `<option value="${s}" ${F.status === s ? 'selected' : ''}>${s ? stLabel[s] : 'Tous les statuts'}</option>`).join('')}</select></div>
+    <div class="card"><h2>Ventes (${list.length})</h2>${list.map(s => `<div class="row" style="align-items:flex-start"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br>
+    <small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'}${s.amount ? ' · ' + s.amount : ''} · ${fmtD(s.created_at)}</small><br>
+    <small>${s.profiles ? '👤 <b>' + esc(s.profiles.full_name) + '</b> (' + esc(s.profiles.referral_code) + ')' : 'Client direct'}</small><br>
+    <small><a href="${wa(s.client_phone)}" target="_blank">${esc(s.client_phone)}</a>${s.proof_url ? ' · <a href="' + esc(s.proof_url) + '" target="_blank">Preuve</a>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</small>
+    ${s.status !== 'validated' ? `<div class="acts"><button class="ok" onclick="setStatus('${s.id}','validated')">✔ Valider</button>${s.status === 'pending' ? `<button class="ko" onclick="setStatus('${s.id}','rejected')">✖ Rejeter</button>` : ''}</div>` : ''}</div></div>`).join('') || '<p class="mu">Aucune vente.</p>'}</div>`;
+  }
+  if (tab === 'ambs') {
+    body = `<div class="card"><h2>Ambassadeurs</h2><div style="overflow-x:auto"><table><tr><th>Nom</th><th>Code</th><th>Validés</th><th>Att.</th><th>Points</th><th>Mois</th></tr>
+    ${D.ambs.map(a => { const s = ambStats(a); return `<tr><td><a href="${wa(a.phone)}" target="_blank">${esc(a.full_name)}</a>${a.active ? '' : ' <small class="down">(désactivé)</small>'}</td><td>${esc(a.referral_code)}</td><td>${s.total}</td><td>${s.pending}</td><td><b>${s.points}</b></td><td>${s.cur} ${trend(s.cur, s.prev)}</td></tr>`; }).join('')}</table></div>
+    <p class="mu">Touchez un nom pour le contacter sur WhatsApp. Pour filtrer par ambassadeur, utilisez l'onglet Ventes.</p></div>
+    <div class="card"><h2>Activer / désactiver</h2>${D.ambs.map(a => `<div class="row"><span>${esc(a.full_name)}</span><button class="s" onclick="toggleAmb('${a.id}',${!a.active})">${a.active ? 'Désactiver' : 'Réactiver'}</button></div>`).join('')}</div>`;
+  }
+  if (tab === 'add') body = `<div class="card"><h2>Ajouter un client manuellement</h2>${saleForm(true)}</div>`;
+  if (tab === 'apps') body = `<div class="card"><h2>Applications en vente & points</h2>${D.apps.map(a => `<div class="row"><div><b>${esc(a.name)}</b><br><small>Prix ${a.price}</small></div><div style="display:flex;gap:6px;align-items:center"><input style="width:70px;margin:0" type="number" value="${a.points_per_sale}" onchange="setPts('${a.id}',this.value)"> pts</div></div>`).join('')}</div>
+    <div class="card"><h2>Nouvelle application</h2><form onsubmit="addApp(event)"><input id="an" placeholder="Nom EXACT (celui envoyé par l'app vendue)" required><input id="ap" type="number" placeholder="Prix"><input id="ae" type="number" placeholder="Points par vente" value="10"><button class="p">Ajouter</button></form></div>`;
+  $('#app').innerHTML = shell('Admin — Ambassadeurs', body,
+    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? ' (' + pend + ')' : ''}`], ['ambs', '👥 Équipe'], ['add', '➕ Client'], ['apps', '📦 Apps']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'home') {
+    drawChart('c1', { type: 'bar', data: { labels: ms.map(label), datasets: [
+      { label: 'Via ambassadeurs', data: ms.map(m => val.filter(s => s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#4ade80' },
+      { label: 'Directs', data: ms.map(m => val.filter(s => !s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#94a3b8' }] },
+      options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
+    const r = D.ambs.map(a => [a.full_name, ambStats(a).points]).sort((x, y) => y[1] - x[1]);
+    drawChart('c2', { type: 'bar', data: { labels: r.map(x => x[0]), datasets: [{ data: r.map(x => x[1]), backgroundColor: '#2dd4bf' }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
+  }
+}
+async function setStatus(id, status) {
+  if (status === 'validated' && !confirm('Confirmer : paiement reçu ? Les points seront crédités à l\'ambassadeur.')) return;
+  const { error } = await sb.from('sales').update({ status }).eq('id', id);
+  if (error) return alert(error.message);
+  toast(status === 'validated' ? 'Validé — l\'ambassadeur est notifié' : 'Rejeté');
+  await loadAdmin(); renderAdmin();
+}
+async function toggleAmb(id, active) { await sb.from('profiles').update({ active }).eq('id', id); await loadAdmin(); renderAdmin(); }
+async function setPts(id, v) { await sb.from('apps').update({ points_per_sale: +v }).eq('id', id); toast('Points mis à jour'); }
+async function addApp(e) {
+  e.preventDefault();
+  const { error } = await sb.from('apps').insert({ name: $('#an').value.trim(), price: +$('#ap').value || 0, points_per_sale: +$('#ae').value || 0 });
+  if (error) return alert(error.message);
+  await loadAdmin(); renderAdmin();
+}
+
+async function installApp() { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = $('#inst'); if (b) b.style.display = ''; });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+boot().finally(() => setTimeout(() => { const s = $('#splash'); if (s) { s.classList.add('off'); setTimeout(() => s.remove(), 500); } }, 900));
+</script>
+</body>
+</html>
