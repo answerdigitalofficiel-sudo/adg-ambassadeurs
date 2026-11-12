@@ -35,7 +35,7 @@ button.s{border:1px solid var(--bd);background:transparent;color:var(--tx);paddi
 button.ok{background:var(--ok);color:#fff;border:0;padding:7px 11px;border-radius:8px;font-size:13px}
 button.ko{background:var(--ko);color:#fff;border:0;padding:7px 11px;border-radius:8px;font-size:13px}
 nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;z-index:5}
-nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--mu);font-size:12px}
+nav button{flex:1;padding:12px 2px;border:0;background:none;color:var(--mu);font-size:11px}
 nav button.on{color:var(--on);font-weight:700}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd)}
 .row:last-child{border:0}.row small{color:var(--mu)}
@@ -59,18 +59,35 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 4px;t
 @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
 #splash{position:fixed;inset:0;background:#0b1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
 #splash.off{opacity:0}
+
+.pw{position:relative}.pw input{padding-right:44px}.eye{position:absolute;right:4px;top:3px;background:none;border:0;font-size:18px;padding:8px;color:var(--mu);cursor:pointer}
+.lb{display:block;font-size:13px;color:var(--mu);margin:6px 0 4px}
+.box{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px}.box small{display:block;color:var(--mu)}
+.bd{display:inline-block;min-width:18px;padding:0 6px;border-radius:20px;background:var(--ko);color:#fff;font-size:11px;margin-left:3px}
+.av{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--ac);vertical-align:middle;margin-right:6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:center;justify-content:center;padding:14px}
+.modal>div{background:var(--card);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto}
+.modal img{width:100%;border-radius:10px;margin:6px 0}
+.tour{position:fixed;left:12px;right:12px;bottom:74px;z-index:25;max-width:420px;margin:0 auto;background:var(--nv);color:#fff;border-radius:14px;padding:12px 14px;border-left:5px solid var(--ac);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.tour p{margin:0 0 8px;font-size:14px}.tour .acts{justify-content:flex-end}.tour button{border:0;border-radius:8px;padding:6px 12px}
+.tour .n{background:var(--ac);color:var(--nv);font-weight:700}.tour .x{background:rgba(255,255,255,.15);color:#fff}
+.hl{outline:3px solid var(--ac);outline-offset:3px;border-radius:12px;animation:pulse 1.4s infinite}
+@keyframes pulse{50%{outline-color:var(--cy)}}
+.sec{margin:14px 0 6px;font-size:14px;color:var(--mu);text-transform:uppercase;letter-spacing:1px}
+label.chk{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px}label.chk input{width:auto;margin:0}
 </style>
 </head>
 <body>
 <div id="splash"></div>
 <div id="app"></div>
 <script>
-/* ====== CONFIGURATION : remplacez par vos valeurs Supabase (Settings > API) ====== */
+/* ====== CONFIGURATION Supabase ====== */
 const CFG = { URL: 'https://kearpnvypzztnnltmrpp.supabase.co', KEY: 'sb_publishable_whfpzyuXH1Qup_q2h5wPdg_QY9uKqpA' };
-/* ================================================================================ */
+/* ==================================== */
 
 const sb = window.supabase.createClient(CFG.URL, CFG.KEY);
 let me = null, D = {}, tab = 'home', F = { amb: '', status: '' }, authMode = 'login', charts = {}, chan = null, deferredInstall = null;
+let avatarUrl = '', showUsd = false, openReq = null, pollT = null, univs = [], univLoaded = 0;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -81,192 +98,523 @@ const label = m => { const [y, mo] = m.split('-'); return new Date(y, mo - 1, 1)
 const stLabel = { pending: 'En attente', validated: 'Validé', rejected: 'Rejeté' };
 const tag = s => `<span class="tag t-${s}">${stLabel[s]}</span>`;
 const wa = p => 'https://wa.me/' + String(p || '').replace(/\D/g, '');
+const usd = n => '$' + (+n || 0).toFixed(2);
+const firstName = n => (String(n || '').trim().split(/\s+/)[0]) || '';
 const trend = (cur, prev) => prev === 0 ? (cur > 0 ? '<span class="up">▲ nouveau</span>' : '<span class="mu">—</span>') : (cur >= prev ? `<span class="up">▲ ${Math.round((cur - prev) / prev * 100)}%</span>` : `<span class="down">▼ ${Math.round((prev - cur) / prev * 100)}%</span>`);
 
 function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 6000); try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==').play(); } catch (e) {} }
 function drawChart(id, cfg) { const el = document.getElementById(id); if (!el) return; if (charts[id]) charts[id].destroy(); charts[id] = new Chart(el, cfg); }
+const errMsg = e => { const m = (e && e.message) || ''; return /Preuve requise/.test(m) ? 'La capture de la preuve de paiement est obligatoire.' : /Compte non actif/.test(m) ? 'Votre compte n\'est pas encore actif.' : /Demande introuvable/.test(m) ? 'Cette demande n\'est plus disponible.' : m || 'Une erreur est survenue.'; };
+
+/* ---------- Mot de passe : afficher / masquer ---------- */
+const pwField = (id, ph) => `<div class="pw"><input id="${id}" type="password" placeholder="${ph}" minlength="6" required autocomplete="current-password"><button type="button" class="eye" aria-label="Afficher ou masquer le mot de passe" onclick="togglePw(this)">👁</button></div>`;
+function togglePw(b) { const i = b.parentNode.querySelector('input'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? '🙈' : '👁'; }
+
+/* ---------- Images : réduction + envoi ---------- */
+function shrink(file, max = 1280) {
+  return createImageBitmap(file).then(bm => {
+    const k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+    c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k);
+    c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+    return new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', 0.82));
+  });
+}
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+async function uploadProof(file) {
+  const blob = await shrink(file), name = uuid() + '.jpg';
+  const { error } = await sb.storage.from('proofs').upload(name, blob, { contentType: 'image/jpeg' });
+  if (error) throw new Error('Envoi de l\'image impossible. Réessayez.');
+  return CFG.URL + '/storage/v1/object/public/proofs/' + name;
+}
+async function signed(path) { if (!path) return ''; const { data } = await sb.storage.from('kyc').createSignedUrl(path, 900); return data ? data.signedUrl : ''; }
+
 /* ---------- Identité Answer Digital ---------- */
 const CELLS = [[2,0,'#a3e635'],[3,0,'#bef264'],[4,0,'#bef264'],[1,1,'#4ade80'],[2,1,'#a3e635'],[3,1,'#a3e635'],[4,1,'#bef264'],[1,2,'#4ade80'],[2,2,'#4ade80'],[3,2,'#a3e635'],[0,3,'#2dd4bf'],[1,3,'#2dd4bf'],[2,3,'#4ade80'],[0,4,'#22d3ee']];
 const LOGO = (s = 32, anim = false) => `<svg class="${anim ? 'an' : ''}" width="${s}" height="${s}" viewBox="0 0 325 325" aria-label="Answer Digital">${CELLS.map(([c, r, f], i) => `<rect x="${c * 67}" y="${r * 67}" width="58" height="58" rx="13" fill="${f}" ${anim ? `style="animation-delay:${i * 0.06}s"` : ''}/>`).join('')}</svg>`;
 const sig = () => `<div class="sig">${LOGO(18)}<span><b>Answer Digital</b> · Technology. Innovation. Solutions.</span></div>`;
 $('#splash').innerHTML = `${LOGO(110, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">ADG Ambassadeurs</div>`;
-const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div><button id="inst" onclick="installApp()" style="display:${deferredInstall ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
+const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div>${avatarUrl ? `<img class="av" src="${esc(avatarUrl)}" alt="">` : ''}${me && me.role === 'ambassador' && me.stage === 'active' ? '<button onclick="startTour()" title="Guide">?</button>' : ''}<button id="inst" onclick="installApp()" style="display:${deferredInstall ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
 
 /* ---------- AUTH ---------- */
 function showAuth(err = '') {
+  if (authMode === 'signup' && !univLoaded) { univLoaded = 1; sb.rpc('list_universities').then(r => { univs = r.data || []; showAuth(err); }); }
   $('#app').innerHTML = `<div class="auth"><div class="authbrand">${LOGO(84, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">Technology. Innovation. Solutions.</div></div><div class="card"><h2 style="text-align:center">ADG Ambassadeurs</h2>
   <div class="tabs"><button class="s" onclick="authMode='login';showAuth()" ${authMode === 'login' ? 'style="border-color:var(--ac)"' : ''}>Connexion</button>
   <button class="s" onclick="authMode='signup';showAuth()" ${authMode === 'signup' ? 'style="border-color:var(--ac)"' : ''}>Inscription</button></div>
   <form onsubmit="doAuth(event)">
-  ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' : ''}
-  <input id="em" type="email" placeholder="Email" required><input id="pw" type="password" placeholder="Mot de passe (6+ caractères)" minlength="6" required>
-  <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form></div>${sig()}</div>`;
+  ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' + (univs.length ? '<select id="un" required><option value="">— Votre université —</option>' + univs.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('') + '</select>' : '') : ''}
+  <input id="em" type="email" placeholder="Email" required>${pwField('pw', 'Mot de passe (6+ caractères)')}
+  <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form>
+  ${authMode === 'signup' ? '<p class="mu" style="font-size:13px;margin:10px 0 0">Après l\'inscription, votre compte est examiné par l\'administration avant l\'accès à votre espace.</p>' : ''}</div>${sig()}</div>`;
 }
 async function doAuth(e) {
   e.preventDefault();
   const email = $('#em').value.trim(), password = $('#pw').value;
   let r;
-  if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim() } } });
+  if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim(), university_id: $('#un') ? $('#un').value : '' } } });
   else r = await sb.auth.signInWithPassword({ email, password });
   if (r.error) return showAuth(r.error.message);
   if (!r.data.session) return showAuth('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
   boot();
 }
-async function logout() { if (chan) sb.removeChannel(chan); await sb.auth.signOut(); me = null; showAuth(); }
+async function logout() { clearInterval(pollT); if (chan) sb.removeChannel(chan); chan = null; await sb.auth.signOut(); me = null; avatarUrl = ''; showAuth(); }
 
 async function boot() {
+  clearInterval(pollT); if (chan) { sb.removeChannel(chan); chan = null; }
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return showAuth();
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error || !data) return showAuth('Profil introuvable.');
-  me = data; tab = 'home';
-  if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); }
-  else { await loadAmb(); renderAmb(); subAmb(); }
+  me = data; tab = 'home'; openReq = null;
+  avatarUrl = me.avatar_path ? await signed(me.avatar_path) : '';
+  if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); return; }
+  if (!me.active) return suspendedScreen();
+  if (me.role === 'manager') { await loadMgr(); renderMgr(); subMgr(); return; }
+  if (me.stage !== 'active') { renderStage(); subSelf(); return; }
+  await loadAmb(); renderAmb(); subAmb();
+  if (!me.welcomed) welcome();
+}
+
+/* ================= INSCRIPTION AMBASSADEUR : étapes ================= */
+function subSelf() {
+  chan = sb.channel('self-' + me.id).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${me.id}` }, () => boot()).subscribe();
+  pollT = setInterval(async () => { const { data } = await sb.from('profiles').select('stage').eq('id', me.id).single(); if (data && data.stage !== me.stage) boot(); }, 20000);
+}
+function renderStage() {
+  const s = me.stage, n = esc(firstName(me.full_name));
+  let body = '';
+  if (s === 'pending') body = `<div class="card"><h2>⏳ Inscription reçue</h2><p>Merci ${n} ! L'administration examine votre inscription <b>(étape 1 sur 2)</b>. Vous serez prévenu automatiquement : cet écran s'actualisera tout seul.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
+  if (s === 'kyc') body = `<div class="card"><h2>✅ Étape 1 validée — complétez votre dossier</h2><p class="mu">Ces informations restent privées et servent uniquement à vérifier votre identité et à vous verser vos gains.</p>
+    <form onsubmit="doKyc(event)"><span class="lb">Photo de profil (visage visible)</span><input id="kf1" type="file" accept="image/*" required>
+    <span class="lb">Capture ou photo de votre pièce d'identité (bien visible)</span><input id="kf2" type="file" accept="image/*" required>
+    <span class="lb">Réseau mobile money</span><select id="kn"><option>Airtel Money</option><option>Orange Money</option><option>M-Pesa</option><option>Africell Money</option><option>Autre</option></select>
+    <input id="km" type="tel" placeholder="Numéro mobile money (ex: 0999...)" required><p class="err" id="ke"></p><button class="p" id="kb">Envoyer mon dossier</button></form></div>`;
+  if (s === 'review') body = `<div class="card"><h2>🔎 Dossier en cours de vérification</h2><p>Merci ${n}. L'administration vérifie votre dossier <b>(étape 2 sur 2)</b>. Dès validation, votre espace ambassadeur s'ouvrira automatiquement.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
+  $('#app').innerHTML = shell('Bienvenue ' + n, body);
+}
+async function doKyc(e) {
+  e.preventDefault();
+  const b = $('#kb'), er = $('#ke'); b.disabled = true; b.textContent = 'Envoi en cours…'; er.textContent = '';
+  try {
+    const up = async (id, name) => { const blob = await shrink($(id).files[0]); const path = me.id + '/' + name + '.jpg'; const { error } = await sb.storage.from('kyc').upload(path, blob, { contentType: 'image/jpeg', upsert: true }); if (error) throw new Error('Envoi d\'une image impossible. Réessayez.'); return path; };
+    const a = await up('#kf1', 'avatar'), i = await up('#kf2', 'identite');
+    const { error } = await sb.rpc('submit_kyc', { p_avatar: a, p_id: i, p_network: $('#kn').value, p_number: $('#km').value });
+    if (error) throw error;
+    boot();
+  } catch (x) { er.textContent = errMsg(x); b.disabled = false; b.textContent = 'Envoyer mon dossier'; }
+}
+
+/* ---------- Message de bienvenue + guide ---------- */
+const TOUR = [
+  ['#codeCard', 'Voici votre code ambassadeur. Donnez-le à vos clients : ils vous choisiront dans l\'application achetée.'],
+  ['nav [data-t=reqs]', 'Demandes : quand un client vous choisit, son formulaire arrive ici. Vous le remplissez, l\'administration valide.'],
+  ['nav [data-t=clients]', 'Clients : suivez chaque client et son statut (en attente, validé).'],
+  ['nav [data-t=pts]', 'Points : votre historique et votre progression mois par mois.'],
+  ['#usdBtn', 'Touchez ici pour convertir vos points en dollars.']
+];
+let tourI = -1;
+function welcome() {
+  const m = document.createElement('div'); m.className = 'modal'; m.id = 'wm';
+  m.innerHTML = `<div style="text-align:center">${LOGO(64, true)}<h2 style="margin-top:10px">🎉 Bienvenue dans l'équipe, ${esc(firstName(me.full_name))} !</h2><p>Votre compte ambassadeur est actif. Votre code :</p><p style="font-size:24px;font-weight:800;letter-spacing:1px;margin:4px 0">${esc(me.referral_code)}</p><p class="mu">Chaque client validé vous rapporte des points, convertibles en dollars.</p><button class="p" onclick="$('#wm').remove();startTour()">Découvrir l'application</button><button class="s" style="margin-top:8px" onclick="$('#wm').remove();endTour()">Plus tard</button></div>`;
+  document.body.appendChild(m);
+}
+function startTour() { tab = 'home'; renderAmb(); tourI = 0; showTour(); }
+function showTour() {
+  document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); const old = $('#tour'); if (old) old.remove();
+  while (tourI < TOUR.length && !$(TOUR[tourI][0])) tourI++;
+  if (tourI >= TOUR.length) return endTour();
+  const [sel, txt] = TOUR[tourI], el = $(sel); el.classList.add('hl'); try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+  const t = document.createElement('div'); t.className = 'tour'; t.id = 'tour';
+  t.innerHTML = `<p>${txt}</p><div class="acts"><button class="x" onclick="endTour()">Passer</button><button class="n" onclick="tourI++;showTour()">${tourI >= TOUR.length - 1 ? 'Terminer' : 'Suivant'}</button></div>`;
+  document.body.appendChild(t);
+}
+function endTour() {
+  document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); const t = $('#tour'); if (t) t.remove(); tourI = -1;
+  if (me && !me.welcomed) { me.welcomed = true; sb.rpc('mark_welcomed'); }
 }
 
 /* ================= AMBASSADEUR ================= */
 async function loadAmb() {
-  const [led, sales, notifs, apps] = await Promise.all([
+  const [led, sales, notifs, apps, reqs] = await Promise.all([
     sb.from('points_ledger').select('*, sales(client_name, apps(name))').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('sales').select('*, apps(name)').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
-    sb.from('apps').select('*').eq('active', true)
+    sb.from('apps').select('*').eq('active', true),
+    sb.from('client_requests').select('*, apps(name, price, currency)').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(40)
   ]);
-  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [] };
+  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [] };
 }
 function subAmb() {
   chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
-    async p => { toast('🎉 ' + p.new.message); await loadAmb(); renderAmb(); }).subscribe();
+    async p => { toast('🎉 ' + p.new.message); await loadAmb(); if (!openReq && tourI < 0) renderAmb(); }).subscribe();
 }
 function renderAmb() {
-  const total = D.led.reduce((a, l) => a + l.points, 0);
+  const total = D.led.reduce((a, l) => a + l.points, 0), totalUsd = D.led.reduce((a, l) => a + (+l.usd || 0), 0);
   const ms = months(), cur = ms[5], prev = ms[4];
   const sm = m => D.led.filter(l => mk(l.created_at) === m).reduce((a, l) => a + l.points, 0);
   const nm = m => D.sales.filter(s => s.status === 'validated' && mk(s.validated_at || s.created_at) === m).length;
   const pend = D.sales.filter(s => s.status === 'pending').length;
-  const link = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const openReqs = D.reqs.filter(r => r.status === 'open');
+  const usdBtn = `<button class="s" id="usdBtn" onclick="showUsd=!showUsd;renderAmb()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   let body = '';
   if (tab === 'home') body = `
-    <div class="grid"><div class="kpi"><small>Mes points</small><b>${total}</b></div>
+    <div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(totalUsd) : total}</b><div style="margin-top:6px">${usdBtn}</div></div>
     <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
     <div class="kpi"><small>En attente</small><b>${pend}</b></div>
     <div class="kpi"><small>Ce mois vs dernier</small><b>${sm(cur)}</b> ${trend(sm(cur), sm(prev))}</div></div>
-    <div class="card" style="margin-top:12px"><h2>Mon code ambassadeur</h2><b style="font-size:22px;letter-spacing:1px">${esc(me.referral_code)}</b>
-    <p class="mu" style="margin:6px 0">Donnez ce code à vos clients : ils le saisissent à l'inscription dans l'application achetée.</p>
+    <div class="card" id="codeCard" style="margin-top:12px"><h2>Mon code ambassadeur${me.is_chief ? ' · 👑 en chef' : ''}</h2><b style="font-size:22px;letter-spacing:1px">${esc(me.referral_code)}</b>
+    <p class="mu" style="margin:6px 0">Donnez ce code à vos clients : ils vous choisissent dans l'application achetée, puis vous remplissez leur formulaire dans « Demandes ».</p>
     <button class="s" onclick="navigator.clipboard.writeText('${esc(me.referral_code)}');toast('Code copié')">Copier le code</button></div>
+    ${openReqs.length ? `<div class="card"><h2>📝 ${openReqs.length} client(s) vous attendent</h2><button class="p" onclick="tab='reqs';renderAmb()">Remplir les formulaires</button></div>` : ''}
     <div class="card"><h2>Évolution des points (6 mois)</h2><canvas id="c1" height="170"></canvas></div>
     <div class="card"><h2>Notifications</h2>${D.notifs.length ? D.notifs.map(n => `<div class="row"><div>${esc(n.message)}<br><small>${fmtD(n.created_at)}</small></div></div>`).join('') : '<p class="mu">Rien pour le moment.</p>'}</div>`;
+  if (tab === 'reqs') body = reqsHtml();
   if (tab === 'clients') body = `<div class="card"><h2>Mes clients (${D.sales.length})</h2>${D.sales.length ? D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? 'Cash' : 'Mobile money'} · ${fmtD(s.created_at)}</small></div><b>${s.status === 'validated' ? '+' + (D.led.find(l => l.sale_id === s.id)?.points ?? 0) : ''}</b></div>`).join('') : '<p class="mu">Aucun client pour l\'instant.</p>'}</div>`;
-  if (tab === 'add') body = `<div class="card"><h2>Déclarer un client (paiement cash)</h2><p class="mu">Après avoir encaissé le cash, déclarez le client ici puis contactez l'administrateur pour l'activation. Vos points arrivent dès la validation.</p>${saleForm(false)}</div>`;
-  if (tab === 'pts') body = `<div class="card"><h2>Historique des points — Total : ${total}</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">+${l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
+  if (tab === 'pts') body = `<div class="card"><h2>Total : ${showUsd ? usd(totalUsd) : total + ' points'}</h2>${usdBtn}</div>
+    <div class="card"><h2>Historique des points</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
     <div class="card"><h2>Clients validés par mois</h2><canvas id="c2" height="170"></canvas></div>`;
-  $('#app').innerHTML = shell('Bonjour ' + esc(me.full_name.split(' ')[0] || ''), body,
-    `<nav>${[['home', '🏠 Accueil'], ['clients', '👥 Clients'], ['pts', '⭐ Points'], ['add', '➕ Cash']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAmb()">${l}</button>`).join('')}</nav>`);
+  $('#app').innerHTML = shell('Bonjour ' + esc(firstName(me.full_name)), body,
+    `<nav>${[['home', '🏠 Accueil'], ['reqs', '📝 Demandes' + (openReqs.length ? `<span class="bd">${openReqs.length}</span>` : '')], ['clients', '👥 Clients'], ['pts', '⭐ Points']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" onclick="tab='${k}';openReq=null;renderAmb()">${l}</button>`).join('')}</nav>`);
   if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(sm), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
   if (tab === 'pts') drawChart('c2', { type: 'bar', data: { labels: ms.map(label), datasets: [{ label: 'Clients', data: ms.map(nm), backgroundColor: '#2dd4bf' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
 
-/* ---------- Formulaire vente (cash) ---------- */
-function saleForm(admin) {
-  return `<form onsubmit="addSale(event,${admin})">
-  ${admin ? `<select id="sa">${'<option value="">— Client direct (sans ambassadeur) —</option>' + (D.ambs || []).map(a => `<option value="${a.id}">${esc(a.full_name)} (${esc(a.referral_code)})</option>`).join('')}</select>` : ''}
+/* ---------- Demandes clients : formulaire rempli par l'ambassadeur ---------- */
+function reqsHtml() {
+  const open = D.reqs.filter(r => r.status === 'open'), done = D.reqs.filter(r => r.status !== 'open');
+  const form = r => `<form onsubmit="sendReq(event,'${r.id}')">
+    <div class="box"><small>Application</small><b>${esc(r.apps?.name || '')}</b> · Prix : <b>${esc(r.apps?.price)} ${esc(r.apps?.currency || '$')}</b> <small>(non modifiable)</small></div>
+    <div class="box"><small>Ambassadeur (non modifiable)</small><b>${esc(me.full_name)}</b> · <b>${esc(me.referral_code)}</b></div>
+    <div class="box"><small>Compte du client</small><b>${esc(r.client_email)}</b></div>
+    <input id="rn" placeholder="Nom complet du client" required><input id="rp" type="tel" placeholder="Numéro de téléphone du client" required>
+    <span class="lb">Moyen de paiement</span><select id="rm" onchange="$('#rproof').style.display=this.value==='cash'?'none':''"><option value="mobile_money">Mobile money</option><option value="cash">Cash</option></select>
+    <div id="rproof"><span class="lb">Capture d'écran de la preuve de paiement (obligatoire pour le mobile money)</span><input id="rf" type="file" accept="image/*"></div>
+    <textarea id="rt" rows="2" placeholder="Note (optionnel)"></textarea><p class="err" id="re"></p>
+    <button class="p" id="rs">Envoyer à l'administration</button><button type="button" class="s" style="margin-top:8px;width:100%" onclick="openReq=null;renderAmb()">Annuler</button></form>`;
+  return `<div class="card"><h2>Clients à enregistrer (${open.length})</h2>${open.length ? open.map(r => `<div class="row" style="flex-direction:column;align-items:stretch"><div><b>${esc(r.client_email)}</b><br><small>${esc(r.apps?.name || '')} · ${fmtD(r.created_at)}</small></div>
+    ${openReq === r.id ? form(r) : `<div class="acts"><button class="ok" onclick="openReq='${r.id}';renderAmb()">Remplir le formulaire</button><button class="s" onclick="declineReq('${r.id}')">Refuser</button></div>`}</div>`).join('') : '<p class="mu">Aucune demande pour le moment. Quand un client vous choisit, il apparaît ici.</p>'}</div>
+    ${done.length ? `<div class="card"><h2>Historique</h2>${done.map(r => `<div class="row"><div><b>${esc(r.client_email)}</b><br><small>${esc(r.apps?.name || '')} · ${fmtD(r.created_at)}</small></div><span class="tag ${r.status === 'submitted' ? 't-validated' : 't-rejected'}">${r.status === 'submitted' ? 'Envoyé' : 'Refusé'}</span></div>`).join('')}</div>` : ''}`;
+}
+async function sendReq(e, id) {
+  e.preventDefault();
+  const b = $('#rs'), er = $('#re'), method = $('#rm').value, f = $('#rf').files[0];
+  er.textContent = '';
+  if (method === 'mobile_money' && !f) { er.textContent = 'Ajoutez la capture d\'écran de la preuve de paiement.'; return; }
+  b.disabled = true; b.textContent = 'Envoi en cours…';
+  try {
+    const proof = method === 'mobile_money' ? await uploadProof(f) : null;
+    const { error } = await sb.rpc('submit_request_form', { p_request: id, p_name: $('#rn').value, p_phone: $('#rp').value, p_method: method, p_proof_url: proof, p_note: $('#rt').value });
+    if (error) throw error;
+    toast('Formulaire envoyé : en attente de validation de l\'administration');
+    openReq = null; await loadAmb(); renderAmb();
+  } catch (x) { er.textContent = errMsg(x); b.disabled = false; b.textContent = 'Envoyer à l\'administration'; }
+}
+async function declineReq(id) {
+  if (!confirm('Refuser cette demande ? Le client devra choisir un autre ambassadeur ou payer directement.')) return;
+  await sb.rpc('cancel_client_request', { p_request: id }); await loadAmb(); renderAmb();
+}
+
+/* ---------- Formulaire vente manuelle (admin) ---------- */
+function saleForm() {
+  return `<form onsubmit="addSale(event)">
+  <select id="sa">${'<option value="">— Client direct (sans ambassadeur) —</option>' + (D.ambs || []).filter(a => a.stage === 'active').map(a => `<option value="${a.id}">${esc(a.full_name)} (${esc(a.referral_code)})</option>`).join('')}</select>
   <input id="sn" placeholder="Nom complet du client" required><input id="sp" placeholder="Téléphone du client" required>
-  <select id="sx" required>${(D.apps || []).map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+  <select id="sx" required>${(D.apps || []).filter(a => a.active).map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
   <select id="sm"><option value="cash">Cash</option><option value="mobile_money">Mobile money</option></select>
   <input id="sv" type="number" step="0.01" placeholder="Montant (optionnel)"><input id="so" placeholder="Note (optionnel)">
   <button class="p">Enregistrer</button></form>`;
 }
-async function addSale(e, admin) {
+async function addSale(e) {
   e.preventDefault();
-  const row = { client_name: $('#sn').value.trim(), client_phone: $('#sp').value.trim(), app_id: $('#sx').value, payment_method: $('#sm').value, amount: $('#sv').value || null, note: $('#so').value || null, status: 'pending', ambassador_id: admin ? ($('#sa').value || null) : me.id };
+  const row = { client_name: $('#sn').value.trim(), client_phone: $('#sp').value.trim(), app_id: $('#sx').value, payment_method: $('#sm').value, amount: $('#sv').value || null, note: $('#so').value || null, status: 'pending', ambassador_id: $('#sa').value || null };
   const { error } = await sb.from('sales').insert(row);
   if (error) return alert(error.message);
   toast('Client enregistré (en attente de validation)');
-  tab = admin ? 'sales' : 'clients';
-  if (admin) { await loadAdmin(); renderAdmin(); } else { await loadAmb(); renderAmb(); }
+  tab = 'sales'; await loadAdmin(); renderAdmin();
 }
 
 /* ================= ADMIN ================= */
 async function loadAdmin() {
-  const [sales, ambs, led, apps] = await Promise.all([
+  const [sales, ppl, led, apps, nums, uni, mled] = await Promise.all([
     sb.from('sales').select('*, apps(name), profiles(full_name, referral_code, phone)').order('created_at', { ascending: false }),
-    sb.from('profiles').select('*').eq('role', 'ambassador').order('created_at'),
+    sb.from('profiles').select('*').neq('role', 'admin').order('created_at'),
     sb.from('points_ledger').select('*'),
-    sb.from('apps').select('*').order('name')
+    sb.from('apps').select('*').order('name'),
+    sb.from('payment_numbers').select('*').order('created_at'),
+    sb.from('universities').select('*').order('name'),
+    sb.from('manager_ledger').select('*')
   ]);
-  D = { sales: sales.data || [], ambs: ambs.data || [], led: led.data || [], apps: apps.data || [] };
+  const all = ppl.data || [];
+  D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [] };
 }
 function subAdmin() {
-  chan = sb.channel('adm').on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, async p => {
-    if (p.eventType === 'INSERT') toast('🔔 Nouvelle demande : ' + p.new.client_name);
-    await loadAdmin(); renderAdmin();
-  }).subscribe();
+  const reload = async () => { await loadAdmin(); if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) renderAdmin(); };
+  chan = sb.channel('adm')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, async p => { if (p.eventType === 'INSERT') toast('🔔 Nouvelle demande : ' + p.new.client_name); await reload(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async p => {
+      if (p.eventType === 'INSERT') toast('🆕 Nouvelle inscription ambassadeur à valider');
+      if (p.eventType === 'UPDATE' && p.new.stage === 'review' && p.old.stage !== 'review') toast('🔎 Dossier ambassadeur à vérifier');
+      await reload();
+    }).subscribe();
 }
 const ambStats = a => {
   const ms = months(), mine = D.sales.filter(s => s.ambassador_id === a.id), v = mine.filter(s => s.status === 'validated');
   const pts = D.led.filter(l => l.ambassador_id === a.id);
   const c = m => v.filter(s => mk(s.validated_at || s.created_at) === m).length;
-  return { total: v.length, pending: mine.filter(s => s.status === 'pending').length, points: pts.reduce((x, l) => x + l.points, 0), cur: c(ms[5]), prev: c(ms[4]), last: v[0]?.validated_at || v[0]?.created_at };
+  return { total: v.length, pending: mine.filter(s => s.status === 'pending').length, points: pts.reduce((x, l) => x + l.points, 0), usd: pts.reduce((x, l) => x + (+l.usd || 0), 0), cur: c(ms[5]), prev: c(ms[4]), last: v[0]?.validated_at || v[0]?.created_at };
 };
 function renderAdmin() {
   const ms = months();
   const pend = D.sales.filter(s => s.status === 'pending').length;
   const val = D.sales.filter(s => s.status === 'validated');
+  const toDo = D.ambs.filter(a => a.stage === 'pending' || a.stage === 'review').length;
+  const actifs = D.ambs.filter(a => a.stage === 'active');
   let body = '';
+  const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderAdmin()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   if (tab === 'home') {
     const rev = val.reduce((a, s) => a + (+s.amount || 0), 0);
     const viaAmb = val.filter(s => s.ambassador_id).length;
-    body = `<div class="grid"><div class="kpi"><small>À valider</small><b style="color:var(--wa)">${pend}</b></div><div class="kpi"><small>Ventes validées</small><b>${val.length}</b></div>
-    <div class="kpi"><small>Via ambassadeurs</small><b>${val.length ? Math.round(viaAmb / val.length * 100) : 0}%</b></div><div class="kpi"><small>Ambassadeurs</small><b>${D.ambs.length}</b></div>
-    <div class="kpi"><small>Montant validé</small><b>${rev}</b></div></div>
+    const pts = D.led.reduce((a, l) => a + l.points, 0), pu = D.led.reduce((a, l) => a + (+l.usd || 0), 0);
+    body = `<div class="grid"><div class="kpi"><small>Ventes à valider</small><b style="color:var(--wa)">${pend}</b></div><div class="kpi"><small>Ambassadeurs à valider</small><b style="color:var(--wa)">${toDo}</b></div><div class="kpi"><small>Ventes validées</small><b>${val.length}</b></div>
+    <div class="kpi"><small>Via ambassadeurs</small><b>${val.length ? Math.round(viaAmb / val.length * 100) : 0}%</b></div><div class="kpi"><small>Ambassadeurs actifs</small><b>${actifs.length}</b></div>
+    <div class="kpi"><small>Montant validé</small><b>${rev}</b></div><div class="kpi"><small>Points distribués</small><b>${showUsd ? usd(pu) : pts}</b><div style="margin-top:6px">${usdBtn}</div></div></div>
     <div class="card" style="margin-top:12px"><h2>Ventes validées / mois</h2><canvas id="c1" height="170"></canvas></div>
-    <div class="card"><h2>Classement ambassadeurs (points)</h2><canvas id="c2" height="${Math.max(120, D.ambs.length * 30)}"></canvas></div>`;
+    <div class="card"><h2>Classement ambassadeurs (points)</h2><canvas id="c2" height="${Math.max(120, actifs.length * 30)}"></canvas></div>`;
   }
   if (tab === 'sales') {
     let list = D.sales.filter(s => (!F.amb || (F.amb === 'none' ? !s.ambassador_id : s.ambassador_id === F.amb)) && (!F.status || s.status === F.status));
-    body = `<div class="card"><select onchange="F.amb=this.value;renderAdmin()"><option value="">Tous les ambassadeurs</option><option value="none" ${F.amb === 'none' ? 'selected' : ''}>Clients directs</option>${D.ambs.map(a => `<option value="${a.id}" ${F.amb === a.id ? 'selected' : ''}>${esc(a.full_name)}</option>`).join('')}</select>
+    body = `<div class="card"><select onchange="F.amb=this.value;renderAdmin()"><option value="">Tous les ambassadeurs</option><option value="none" ${F.amb === 'none' ? 'selected' : ''}>Clients directs</option>${actifs.map(a => `<option value="${a.id}" ${F.amb === a.id ? 'selected' : ''}>${esc(a.full_name)}</option>`).join('')}</select>
     <select onchange="F.status=this.value;renderAdmin()">${['', 'pending', 'validated', 'rejected'].map(s => `<option value="${s}" ${F.status === s ? 'selected' : ''}>${s ? stLabel[s] : 'Tous les statuts'}</option>`).join('')}</select></div>
     <div class="card"><h2>Ventes (${list.length})</h2>${list.map(s => `<div class="row" style="align-items:flex-start"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br>
     <small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'}${s.amount ? ' · ' + s.amount : ''} · ${fmtD(s.created_at)}</small><br>
-    <small>${s.profiles ? '👤 <b>' + esc(s.profiles.full_name) + '</b> (' + esc(s.profiles.referral_code) + ')' : 'Client direct'}</small><br>
-    <small><a href="${wa(s.client_phone)}" target="_blank">${esc(s.client_phone)}</a>${s.proof_url ? ' · <a href="' + esc(s.proof_url) + '" target="_blank">Preuve</a>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</small>
+    <small>${s.profiles ? '👤 <b>' + esc(s.profiles.full_name) + '</b> (' + esc(s.profiles.referral_code) + ')' : 'Client direct (sans ambassadeur)'}</small><br>
+    <small><a href="${wa(s.client_phone)}" target="_blank">${esc(s.client_phone)}</a>${s.proof_url ? ' · <a href="' + esc(s.proof_url) + '" target="_blank">Voir la preuve</a>' : ''}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small>
     ${s.status !== 'validated' ? `<div class="acts"><button class="ok" onclick="setStatus('${s.id}','validated')">✔ Valider</button>${s.status === 'pending' ? `<button class="ko" onclick="setStatus('${s.id}','rejected')">✖ Rejeter</button>` : ''}</div>` : ''}</div></div>`).join('') || '<p class="mu">Aucune vente.</p>'}</div>`;
   }
   if (tab === 'ambs') {
-    body = `<div class="card"><h2>Ambassadeurs</h2><div style="overflow-x:auto"><table><tr><th>Nom</th><th>Code</th><th>Validés</th><th>Att.</th><th>Points</th><th>Mois</th></tr>
-    ${D.ambs.map(a => { const s = ambStats(a); return `<tr><td><a href="${wa(a.phone)}" target="_blank">${esc(a.full_name)}</a>${a.active ? '' : ' <small class="down">(désactivé)</small>'}</td><td>${esc(a.referral_code)}</td><td>${s.total}</td><td>${s.pending}</td><td><b>${s.points}</b></td><td>${s.cur} ${trend(s.cur, s.prev)}</td></tr>`; }).join('')}</table></div>
-    <p class="mu">Touchez un nom pour le contacter sur WhatsApp. Pour filtrer par ambassadeur, utilisez l'onglet Ventes.</p></div>
-    <div class="card"><h2>Activer / désactiver</h2>${D.ambs.map(a => `<div class="row"><span>${esc(a.full_name)}</span><button class="s" onclick="toggleAmb('${a.id}',${!a.active})">${a.active ? 'Désactiver' : 'Réactiver'}</button></div>`).join('')}</div>`;
+    const p1 = D.ambs.filter(a => a.stage === 'pending'), p2 = D.ambs.filter(a => a.stage === 'review'), p15 = D.ambs.filter(a => a.stage === 'kyc');
+    const del = a => `<button class="ko" onclick="delAmb('${a.id}','${esc(a.full_name).replace(/'/g, '')}')">🗑</button>`;
+    const un = a => esc((D.univ.find(u => u.id === a.university_id) || {}).name || 'Sans université');
+    body = broadcastCard() + `${p1.length ? `<div class="sec">Étape 1 — Inscriptions à valider (${p1.length})</div><div class="card">${p1.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · <a href="${wa(a.phone)}" target="_blank">${esc(a.phone)}</a> · ${fmtD(a.created_at)}</small></div><div class="acts"><button class="ok" onclick="setStage('${a.id}','kyc')">✔ Valider</button>${del(a)}</div></div>`).join('')}</div>` : ''}
+    ${p2.length ? `<div class="sec">Étape 2 — Dossiers à vérifier (${p2.length})</div><div class="card">${p2.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · ${esc(a.momo_network || '')} ${esc(a.momo_number || '')}</small></div><div class="acts"><button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>${del(a)}</div></div>`).join('')}</div>` : ''}
+    ${p15.length ? `<div class="sec">Dossier en cours de remplissage (${p15.length})</div><div class="card">${p15.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · étape 1 validée</small></div>${del(a)}</div>`).join('')}</div>` : ''}
+    <div class="sec">Managers (${D.mgrs.length})</div><div class="card">${D.mgrs.map(m => { const g = D.mled.filter(l => l.manager_id === m.id); return `<div class="row"><div><b>${esc(m.full_name)}</b> ${m.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br><small>${un(m)} · ${showUsd ? usd(sum(g, 'usd')) : sum(g, 'points') + ' pts'}</small></div><div class="acts"><button class="s" onclick="mgrActiveAny('${m.id}',${!m.active})">${m.active ? 'Suspendre' : 'Réactiver'}</button><button class="s" onclick="unsetMgr('${m.id}')">Retirer</button>${del(m)}</div></div>`; }).join('') || '<p class="mu">Aucun manager. Une personne s\'inscrit normalement, puis vous la nommez manager dans l\'onglet 🏫 Univ.</p>'}</div>
+    <div class="sec">Ambassadeurs actifs (${actifs.length})</div><div class="card"><div style="margin-bottom:8px">${usdBtn}</div><div style="overflow-x:auto"><table><tr><th>Nom</th><th>Univ.</th><th>Validés</th><th>Att.</th><th>${showUsd ? 'Gains' : 'Points'}</th><th>Mois</th><th></th></tr>
+    ${actifs.map(a => { const s = ambStats(a); return `<tr><td><a href="${wa(a.phone)}" target="_blank">${esc(a.full_name)}</a> ${a.is_chief ? '👑' : ''}${a.active ? '' : ' <small class="down">(suspendu)</small>'}<br><small>${esc(a.referral_code)}${a.momo_number ? ' · ' + esc(a.momo_network || '') + ' ' + esc(a.momo_number) : ''}</small></td><td><small>${un(a)}</small></td><td>${s.total}</td><td>${s.pending}</td><td><b>${showUsd ? usd(s.usd) : s.points}</b></td><td>${s.cur} ${trend(s.cur, s.prev)}</td><td style="white-space:nowrap"><button class="s" onclick="mgrActiveAny('${a.id}',${!a.active})">${a.active ? 'Suspendre' : 'Réact.'}</button> ${del(a)}</td></tr>`; }).join('') || '<tr><td colspan="7" class="mu">Aucun ambassadeur actif.</td></tr>'}</table></div></div>`;
   }
-  if (tab === 'add') body = `<div class="card"><h2>Ajouter un client manuellement</h2>${saleForm(true)}</div>`;
-  if (tab === 'apps') body = `<div class="card"><h2>Applications en vente & points</h2>${D.apps.map(a => `<div class="row"><div><b>${esc(a.name)}</b><br><small>Prix ${a.price}</small></div><div style="display:flex;gap:6px;align-items:center"><input style="width:70px;margin:0" type="number" value="${a.points_per_sale}" onchange="setPts('${a.id}',this.value)"> pts</div></div>`).join('')}</div>
-    <div class="card"><h2>Nouvelle application</h2><form onsubmit="addApp(event)"><input id="an" placeholder="Nom EXACT (celui envoyé par l'app vendue)" required><input id="ap" type="number" placeholder="Prix"><input id="ae" type="number" placeholder="Points par vente" value="10"><button class="p">Ajouter</button></form></div>`;
+  if (tab === 'univ') {
+    const free = D.ambs.filter(a => !a.university_id);
+    body = `<div class="card"><h2>Ajouter une université</h2><form onsubmit="addUniv(event)"><input id="un1" placeholder="Nom de l'université" required><button class="p">Ajouter</button></form></div>` +
+      D.univ.map(u => {
+        const mgr = D.mgrs.find(m => m.university_id === u.id), team = D.ambs.filter(a => a.university_id === u.id), tIds = team.map(a => a.id);
+        const sv = D.sales.filter(s => s.status === 'validated' && tIds.includes(s.ambassador_id)).length, g = mgr ? D.mled.filter(l => l.manager_id === mgr.id) : [];
+        const cands = D.ambs.filter(a => a.stage === 'active' && (a.university_id === u.id || !a.university_id));
+        return `<div class="card"><h2>🏫 ${esc(u.name)} ${u.active ? '' : '<small class="down">(masquée)</small>'}</h2>
+          <p style="margin:4px 0"><b>Manager :</b> ${mgr ? esc(mgr.full_name) + ` <button class="s" onclick="unsetMgr('${mgr.id}')">Retirer</button>` : '<span class="mu">Aucun</span>'}</p>
+          ${mgr ? '' : `<div style="display:flex;gap:6px"><select id="mp-${u.id}" style="margin:0"><option value="">— Choisir la personne —</option>${cands.map(a => `<option value="${a.id}">${esc(a.full_name)}</option>`).join('')}</select><button class="ok" onclick="setMgr('${u.id}')">Nommer</button></div>`}
+          <p style="margin:8px 0 0"><b>Équipe :</b> ${team.length} · <b>Ventes validées :</b> ${sv} · <b>Gains du manager :</b> ${showUsd ? usd(sum(g, 'usd')) : sum(g, 'points') + ' pts'}</p>
+          ${team.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b> ${a.is_chief ? '👑' : ''} ${a.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br><small>${stageTxt[a.stage]}</small></div><div class="acts">${a.stage === 'active' ? `<button class="s" onclick="mgrChief('${a.id}',${!a.is_chief})">${a.is_chief ? 'Retirer chef' : '👑 Chef'}</button>` : ''}</div></div>`).join('')}
+          <div class="acts"><button class="s" onclick="toggleUniv('${u.id}',${!u.active})">${u.active ? 'Masquer' : 'Afficher'}</button>${usdBtn}</div></div>`;
+      }).join('') +
+      (free.length ? `<div class="sec">Ambassadeurs sans université</div><div class="card">${free.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b></div><select style="width:55%;margin:0" onchange="setUniv('${a.id}',this.value)"><option value="">— Affecter —</option>${D.univ.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>`).join('')}</div>` : '');
+  }
+  if (tab === 'add') body = `<div class="card"><h2>Ajouter un client manuellement</h2>${saleForm()}</div>`;
+  if (tab === 'apps') {
+    body = `<div class="sec">Applications en vente</div>${D.apps.map(a => `<div class="card"><h2>${esc(a.name)}</h2>
+      <span class="lb">Prix</span><div style="display:flex;gap:6px"><input id="ap-${a.id}" type="number" step="0.01" value="${a.price}"><input id="ac-${a.id}" style="max-width:80px" value="${esc(a.currency)}"></div>
+      <span class="lb">Points par vente</span><input id="ae-${a.id}" type="number" value="${a.points_per_sale}">
+      <span class="lb">Points du manager par vente d'un de ses ambassadeurs</span><input id="am-${a.id}" type="number" value="${a.manager_points_per_sale}">
+      <span class="lb">Valeur d'un point en $ (0.10 → 5 points = $0.50)</span><input id="au-${a.id}" type="number" step="0.01" value="${a.usd_per_point}">
+      <span class="lb">Instructions de paiement affichées au client</span><textarea id="ai-${a.id}" rows="3">${esc(a.pay_info)}</textarea>
+      <label class="chk"><input type="checkbox" id="aa-${a.id}" ${a.active ? 'checked' : ''}> En vente (visible)</label>
+      <button class="p" onclick="saveApp('${a.id}')">Enregistrer</button></div>`).join('')}
+    <div class="card"><h2>Nouvelle application</h2><form onsubmit="addApp(event)"><input id="an" placeholder="Nom EXACT (celui envoyé par l'app vendue)" required><input id="ap" type="number" step="0.01" placeholder="Prix"><input id="ae" type="number" placeholder="Points par vente" value="5"><button class="p">Ajouter</button></form></div>
+    <div class="sec">Numéros de paiement (mobile money)</div><div class="card">${D.nums.map(n => `<div class="row"><div><b>${esc(n.network)}</b> · ${esc(n.number)}<br><small>${esc(n.label)}${n.active ? '' : ' · masqué'}</small></div><div class="acts"><button class="s" onclick="toggleNum('${n.id}',${!n.active})">${n.active ? 'Masquer' : 'Afficher'}</button><button class="ko" onclick="delNum('${n.id}')">🗑</button></div></div>`).join('') || '<p class="mu">Aucun numéro.</p>'}</div>
+    <div class="card"><h2>Ajouter un numéro</h2><form onsubmit="addNum(event)"><select id="nn"><option>Airtel Money</option><option>Orange Money</option><option>M-Pesa</option><option>Africell Money</option><option>Autre</option></select><input id="nm" type="tel" placeholder="Numéro" required><input id="nl" placeholder="Nom du titulaire (optionnel)"><button class="p">Ajouter</button></form></div>`;
+  }
   $('#app').innerHTML = shell('Admin — Ambassadeurs', body,
-    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? ' (' + pend + ')' : ''}`], ['ambs', '👥 Équipe'], ['add', '➕ Client'], ['apps', '📦 Apps']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
   if (tab === 'home') {
     drawChart('c1', { type: 'bar', data: { labels: ms.map(label), datasets: [
       { label: 'Via ambassadeurs', data: ms.map(m => val.filter(s => s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#4ade80' },
       { label: 'Directs', data: ms.map(m => val.filter(s => !s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#94a3b8' }] },
       options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
-    const r = D.ambs.map(a => [a.full_name, ambStats(a).points]).sort((x, y) => y[1] - x[1]);
+    const r = actifs.map(a => [a.full_name, ambStats(a).points]).sort((x, y) => y[1] - x[1]);
     drawChart('c2', { type: 'bar', data: { labels: r.map(x => x[0]), datasets: [{ data: r.map(x => x[1]), backgroundColor: '#2dd4bf' }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
   }
 }
 async function setStatus(id, status) {
-  if (status === 'validated' && !confirm('Confirmer : paiement reçu ? Les points seront crédités à l\'ambassadeur.')) return;
+  if (status === 'validated' && !confirm('Confirmer : paiement reçu ? L\'application sera débloquée et les points crédités à l\'ambassadeur.')) return;
   const { error } = await sb.from('sales').update({ status }).eq('id', id);
   if (error) return alert(error.message);
-  toast(status === 'validated' ? 'Validé — l\'ambassadeur est notifié' : 'Rejeté');
+  toast(status === 'validated' ? 'Validé — le client est débloqué, l\'ambassadeur est notifié' : 'Rejeté');
   await loadAdmin(); renderAdmin();
 }
 async function toggleAmb(id, active) { await sb.from('profiles').update({ active }).eq('id', id); await loadAdmin(); renderAdmin(); }
-async function setPts(id, v) { await sb.from('apps').update({ points_per_sale: +v }).eq('id', id); toast('Points mis à jour'); }
+async function mgrActiveAny(id, flag) { if (!flag && !confirm('Suspendre ce compte ?')) return; const { error } = await sb.rpc('mgr_set_active', { p_user: id, p_active: flag }); if (error) { await sb.from('profiles').update({ active: flag }).eq('id', id); } await refresh(); }
+async function setStage(id, stage) {
+  const { error } = await sb.rpc('mgr_set_stage', { p_user: id, p_stage: stage });
+  if (error) return alert(error.message);
+  toast(stage === 'kyc' ? 'Étape 1 validée : l\'ambassadeur peut envoyer son dossier' : stage === 'active' ? 'Ambassadeur activé 🎉' : 'Mis à jour');
+  closeModal(); await refresh();
+}
+async function delAmb(id, name) {
+  if (!confirm('Supprimer définitivement le compte de ' + name + ' ?\nSes points et notifications seront supprimés. Ses ventes restent enregistrées sans ambassadeur.')) return;
+  const { error } = await sb.rpc('admin_delete_user', { p_user: id });
+  if (error) return alert(error.message);
+  toast('Compte supprimé'); closeModal(); await refresh();
+}
+function closeModal() { const m = $('#km2'); if (m) m.remove(); }
+async function viewKyc(id) {
+  const a = D.ambs.find(x => x.id === id); if (!a) return;
+  const [p, d] = await Promise.all([signed(a.avatar_path), signed(a.id_doc_path)]);
+  const m = document.createElement('div'); m.className = 'modal'; m.id = 'km2';
+  m.innerHTML = `<div><h2>${esc(a.full_name)}</h2><p class="mu">${esc(a.phone)} · ${esc(a.momo_network || '')} ${esc(a.momo_number || '')}</p>
+    <span class="lb">Photo de profil</span>${p ? `<img src="${esc(p)}" alt="">` : '<p class="mu">Introuvable</p>'}
+    <span class="lb">Pièce d'identité</span>${d ? `<img src="${esc(d)}" alt="">` : '<p class="mu">Introuvable</p>'}
+    <button class="p" onclick="setStage('${a.id}','active')">✔ Valider (étape 2) — activer le compte</button>
+    <button class="s" style="width:100%;margin-top:8px" onclick="setStage('${a.id}','kyc')">↩ Demander un nouveau dossier</button>
+    <button class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Fermer</button></div>`;
+  document.body.appendChild(m);
+}
+async function saveApp(id) {
+  const g = p => $('#' + p + '-' + id);
+  const { error } = await sb.from('apps').update({ price: +g('ap').value || 0, currency: g('ac').value.trim() || '$', points_per_sale: +g('ae').value || 0, usd_per_point: +g('au').value || 0, manager_points_per_sale: +g('am').value || 0, pay_info: g('ai').value.trim(), active: g('aa').checked }).eq('id', id);
+  if (error) return alert(error.message);
+  toast('Réglages enregistrés'); await loadAdmin(); renderAdmin();
+}
 async function addApp(e) {
   e.preventDefault();
   const { error } = await sb.from('apps').insert({ name: $('#an').value.trim(), price: +$('#ap').value || 0, points_per_sale: +$('#ae').value || 0 });
   if (error) return alert(error.message);
   await loadAdmin(); renderAdmin();
 }
+async function addNum(e) {
+  e.preventDefault();
+  const { error } = await sb.from('payment_numbers').insert({ network: $('#nn').value, number: $('#nm').value.trim(), label: $('#nl').value.trim() });
+  if (error) return alert(error.message);
+  toast('Numéro ajouté'); await loadAdmin(); renderAdmin();
+}
+async function toggleNum(id, active) { await sb.from('payment_numbers').update({ active }).eq('id', id); await loadAdmin(); renderAdmin(); }
+async function delNum(id) { if (!confirm('Supprimer ce numéro ?')) return; await sb.from('payment_numbers').delete().eq('id', id); await loadAdmin(); renderAdmin(); }
+
+/* ================= MANAGER / CHEF / ÉQUIPES ================= */
+async function refresh() { if (me.role === 'admin') { await loadAdmin(); renderAdmin(); } else if (me.role === 'manager') { await loadMgr(); renderMgr(); } else { await loadAmb(); renderAmb(); } }
+const typing = () => document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+const sameDay = d => new Date(d).toDateString() === new Date().toDateString();
+const sum = (l, k) => l.reduce((a, x) => a + (+x[k] || 0), 0);
+const stageTxt = { pending: 'Inscription à valider', kyc: 'Dossier à envoyer', review: 'Dossier à vérifier', active: 'Actif' };
+
+function suspendedScreen() {
+  $('#app').innerHTML = shell('Compte suspendu', `<div class="card"><h2>⛔ Votre compte est suspendu</h2><p>Contactez votre manager ou l'administration pour plus d'informations.</p></div>`);
+}
+
+function memberStats(a, sales, led) {
+  const mine = sales.filter(s => s.ambassador_id === a.id), v = mine.filter(s => s.status === 'validated'), pts = led.filter(l => l.ambassador_id === a.id);
+  return { total: v.length, pending: mine.filter(s => s.status === 'pending').length, points: sum(pts, 'points'), usd: sum(pts, 'usd'), today: v.filter(s => sameDay(s.validated_at || s.created_at)).length, todayPts: sum(pts.filter(l => sameDay(l.created_at)), 'points') };
+}
+function teamList(members, sales, led, mode) {
+  if (!members.length) return '<p class="mu">Aucun ambassadeur dans l\'équipe pour le moment.</p>';
+  return members.map(a => {
+    const s = memberStats(a, sales, led); let acts = '';
+    if (mode === 'mgr') {
+      if (a.stage === 'pending') acts += `<button class="ok" onclick="setStage('${a.id}','kyc')">✔ Valider</button>`;
+      if (a.stage === 'review') acts += `<button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>`;
+      if (a.stage === 'active') acts += `<button class="s" onclick="mgrChief('${a.id}',${!a.is_chief})">${a.is_chief ? 'Retirer « en chef »' : '👑 Nommer en chef'}</button>`;
+      if (a.stage === 'active') acts += `<button class="${a.active ? 'ko' : 'ok'}" onclick="mgrActive('${a.id}',${!a.active})">${a.active ? 'Suspendre' : 'Réactiver'}</button>`;
+    }
+    return `<div class="row" style="align-items:flex-start"><div><b>${esc(a.full_name)}</b> ${a.is_chief ? '👑' : ''} ${a.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br>
+      <small>${esc(a.referral_code)} · ${stageTxt[a.stage] || ''} · <a href="${wa(a.phone)}" target="_blank">${esc(a.phone)}</a></small><br>
+      <small>Validés : <b>${s.total}</b> · En attente : ${s.pending} · Aujourd'hui : <b>${s.today}</b> · ${showUsd ? usd(s.usd) : s.points + ' pts'}</small>${acts ? `<div class="acts">${acts}</div>` : ''}</div></div>`;
+  }).join('');
+}
+const broadcastCard = () => `<div class="card"><h2>📣 Message à l'équipe</h2><textarea id="bm" rows="2" maxlength="300" placeholder="Un mot pour motiver l'équipe…"></textarea><button class="p" onclick="sendBroadcast()">Envoyer à toute l'équipe</button></div>`;
+async function sendBroadcast() {
+  const t = $('#bm').value.trim(); if (t.length < 2) return;
+  const { data, error } = await sb.rpc('team_broadcast', { p_message: t });
+  if (error) return alert(error.message);
+  $('#bm').value = ''; toast('Message envoyé à ' + data + ' membre(s)');
+}
+async function mgrChief(id, flag) { const { error } = await sb.rpc('mgr_set_chief', { p_user: id, p_flag: flag }); if (error) return alert(error.message); toast(flag ? '👑 Ambassadeur en chef nommé' : 'Rôle retiré'); await refresh(); }
+async function mgrActive(id, flag) {
+  if (!flag && !confirm('Suspendre cet ambassadeur ? Il n\'aura plus accès à son espace.')) return;
+  const { error } = await sb.rpc('mgr_set_active', { p_user: id, p_active: flag }); if (error) return alert(error.message);
+  toast(flag ? 'Ambassadeur réactivé' : 'Ambassadeur suspendu'); await refresh();
+}
+
+/* ---------- Compte MANAGER ---------- */
+async function loadMgr() {
+  const [team, sales, led, mled, apps, un, nt] = await Promise.all([
+    sb.from('profiles').select('*').eq('role', 'ambassador').order('created_at'),
+    sb.from('sales').select('*, apps(name), profiles(full_name, referral_code)').order('created_at', { ascending: false }),
+    sb.from('points_ledger').select('*'),
+    sb.from('manager_ledger').select('*, sales(client_name, apps(name)), profiles:ambassador_id(full_name)').eq('manager_id', me.id).order('created_at', { ascending: false }),
+    sb.from('apps').select('*').eq('active', true),
+    sb.from('universities').select('*'),
+    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20)
+  ]);
+  D = { notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
+}
+function subMgr() {
+  const soft = async () => { await loadMgr(); if (!typing()) renderMgr(); };
+  chan = sb.channel('mgr-' + me.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async p => {
+      if (p.eventType === 'INSERT' && p.new.university_id === me.university_id) toast('🆕 Nouvelle inscription dans votre équipe');
+      if (p.eventType === 'UPDATE' && p.new.university_id === me.university_id && p.new.stage === 'review' && p.old.stage !== 'review') toast('🔎 Dossier à vérifier');
+      await soft();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, soft)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` }, async p => { toast('🎉 ' + p.new.message); await soft(); })
+    .subscribe();
+}
+function renderMgr() {
+  const team = D.ambs, active = team.filter(a => a.stage === 'active'), toDo = team.filter(a => a.stage === 'pending' || a.stage === 'review').length;
+  const mp = sum(D.mled, 'points'), mu = sum(D.mled, 'usd'), todayL = D.mled.filter(l => sameDay(l.created_at));
+  const rate = D.apps.length ? D.apps.map(a => a.manager_points_per_sale + ' pt' + (a.manager_points_per_sale > 1 ? 's' : '') + ' (' + esc(a.name) + ')').join(', ') : '—';
+  const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderMgr()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
+  const ms = months(), msum = m => sum(D.mled.filter(l => mk(l.created_at) === m), 'points');
+  let body = '';
+  if (tab === 'home') body = `<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(mu) : mp}</b><div style="margin-top:6px">${usdBtn}</div></div>
+    <div class="kpi"><small>Aujourd'hui</small><b>${showUsd ? usd(sum(todayL, 'usd')) : sum(todayL, 'points')}</b></div>
+    <div class="kpi"><small>Ambassadeurs actifs</small><b>${active.length}</b></div>
+    <div class="kpi"><small>Ventes validées</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div></div>
+    ${toDo ? `<div class="card" style="margin-top:12px"><h2>🔔 ${toDo} ambassadeur(s) à valider</h2><button class="p" onclick="tab='team';renderMgr()">Ouvrir mon équipe</button></div>` : ''}
+    <div class="card" style="margin-top:12px"><h2>Résultats d'aujourd'hui — ${esc(D.univ?.name || '')}</h2>
+      ${active.length ? `<table><tr><th>Ambassadeur</th><th>Ventes</th><th>Ses points</th></tr>${active.map(a => { const s = memberStats(a, D.sales, D.led); return `<tr><td>${esc(a.full_name)} ${a.is_chief ? '👑' : ''}</td><td>${s.today}</td><td>${s.todayPts}</td></tr>`; }).join('')}</table>` : '<p class="mu">Aucun ambassadeur actif.</p>'}
+      <p style="margin:10px 0 0"><b>Votre gain du jour : ${sum(todayL, 'points')} points (${usd(sum(todayL, 'usd'))})</b><br><small class="mu">Calcul automatique : vous gagnez ${rate} sur chaque vente validée d'un ambassadeur de votre équipe.</small></p></div>
+    <div class="card"><h2>Évolution de mes points (6 mois)</h2><canvas id="c1" height="170"></canvas></div>
+    <div class="card"><h2>Notifications</h2>${D.notifs.length ? D.notifs.map(n => `<div class="row"><div>${esc(n.message)}<br><small>${fmtD(n.created_at)}</small></div></div>`).join('') : '<p class="mu">Rien pour le moment.</p>'}</div>`;
+  if (tab === 'team') {
+    const p1 = team.filter(a => a.stage === 'pending'), p2 = team.filter(a => a.stage === 'review'), rest = team.filter(a => a.stage !== 'pending' && a.stage !== 'review');
+    const row = (a, btns) => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small><a href="${wa(a.phone)}" target="_blank">${esc(a.phone)}</a> · ${fmtD(a.created_at)}${a.momo_number ? ' · ' + esc(a.momo_network || '') + ' ' + esc(a.momo_number) : ''}</small></div><div class="acts">${btns}</div></div>`;
+    body = broadcastCard() +
+      (p1.length ? `<div class="sec">Étape 1 — Inscriptions à valider (${p1.length})</div><div class="card">${p1.map(a => row(a, `<button class="ok" onclick="setStage('${a.id}','kyc')">✔ Valider</button>`)).join('')}</div>` : '') +
+      (p2.length ? `<div class="sec">Étape 2 — Dossiers à vérifier (${p2.length})</div><div class="card">${p2.map(a => row(a, `<button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>`)).join('')}</div>` : '') +
+      `<div class="sec">Mon équipe (${rest.length})</div><div class="card"><div style="margin-bottom:8px">${usdBtn}</div>${teamList(rest, D.sales, D.led, 'mgr')}</div>`;
+  }
+  if (tab === 'sales') body = `<div class="card"><h2>Ventes de mon équipe (${D.sales.length})</h2>${D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'} · ${fmtD(s.created_at)}</small><br><small>👤 ${esc(s.profiles?.full_name || '—')}</small></div></div>`).join('') || '<p class="mu">Aucune vente pour le moment.</p>'}</div>`;
+  if (tab === 'pts') {
+    const days = {}; D.mled.forEach(l => { const k = new Date(l.created_at).toLocaleDateString('fr-FR'); (days[k] = days[k] || { n: 0, p: 0, u: 0 }); days[k].n++; days[k].p += l.points; days[k].u += +l.usd; });
+    body = `<div class="card"><h2>Total : ${showUsd ? usd(mu) : mp + ' points'}</h2>${usdBtn}</div>
+      <div class="card"><h2>Par jour</h2>${Object.keys(days).length ? `<table><tr><th>Jour</th><th>Ventes</th><th>${showUsd ? 'Gain' : 'Points'}</th></tr>${Object.entries(days).slice(0, 31).map(([d, x]) => `<tr><td>${d}</td><td>${x.n}</td><td><b>${showUsd ? usd(x.u) : x.p}</b></td></tr>`).join('')}</table>` : '<p class="mu">Aucun gain pour le moment.</p>'}</div>
+      <div class="card"><h2>Détail</h2>${D.mled.map(l => `<div class="row"><div><b>${esc(l.profiles?.full_name || 'Ambassadeur')}</b><br><small>${esc(l.sales?.client_name || '')} · ${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') || '<p class="mu">—</p>'}</div>`;
+  }
+  $('#app').innerHTML = shell('Manager — ' + esc(D.univ?.name || 'Université'), body,
+    `<nav>${[['home', '🏠 Accueil'], ['team', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['sales', '🧾 Ventes'], ['pts', '⭐ Points']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderMgr()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(msum), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+/* ---------- Admin : universités, managers ---------- */
+async function addUniv(e) { e.preventDefault(); const { error } = await sb.from('universities').insert({ name: $('#un1').value.trim() }); if (error) return alert(error.message); toast('Université ajoutée'); await refresh(); }
+async function toggleUniv(id, active) { await sb.from('universities').update({ active }).eq('id', id); await refresh(); }
+async function setMgr(uid) {
+  const u = $('#mp-' + uid).value; if (!u) return alert('Choisissez la personne à nommer.');
+  const { error } = await sb.rpc('admin_set_role', { p_user: u, p_role: 'manager', p_univ: uid });
+  if (error) return alert(/duplicate|unique/i.test(error.message) ? 'Cette université a déjà un manager.' : error.message);
+  toast('Manager nommé'); await refresh();
+}
+async function unsetMgr(id) { if (!confirm('Retirer le rôle de manager ?')) return; const { error } = await sb.rpc('admin_set_role', { p_user: id, p_role: 'ambassador', p_univ: null }); if (error) return alert(error.message); await refresh(); }
+async function setUniv(id, v) { const { error } = await sb.rpc('admin_set_university', { p_user: id, p_univ: v || null }); if (error) return alert(error.message); toast('Université mise à jour'); await refresh(); }
 
 async function installApp() { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = $('#inst'); if (b) b.style.display = ''; });
