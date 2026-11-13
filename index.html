@@ -162,7 +162,7 @@ async function doAuth(e) {
   if (authMode === 'signup' && !($('#un') && $('#un').value)) return showAuth('Choisissez votre université : elle est obligatoire pour vous inscrire.');
   if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim(), university_id: $('#un') ? $('#un').value : '' } } });
   else r = await sb.auth.signInWithPassword({ email, password });
-  if (r.error) return showAuth(r.error.message);
+  if (r.error) return showAuth(/UNIVERSITE_REQUISE|Database error saving new user/i.test(r.error.message) ? 'Votre université est obligatoire pour vous inscrire.' : r.error.message);
   if (!r.data.session) return showAuth('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
   boot();
 }
