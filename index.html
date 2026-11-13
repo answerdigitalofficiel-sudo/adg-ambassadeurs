@@ -178,6 +178,7 @@ async function boot() {
   avatarUrl = me.avatar_path ? await signed(me.avatar_path) : '';
   if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); return; }
   if (!me.active) return suspendedScreen();
+  if (me.role === 'ambassador' && !me.university_id) return univGate();
   if (me.role === 'manager') { await loadMgr(); renderMgr(); subMgr(); return; }
   if (me.stage !== 'active') { renderStage(); subSelf(); return; }
   await loadAmb(); renderAmb(); subAmb();
