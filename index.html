@@ -150,7 +150,7 @@ function showAuth(err = '') {
   <div class="tabs"><button class="s" onclick="authMode='login';showAuth()" ${authMode === 'login' ? 'style="border-color:var(--ac)"' : ''}>Connexion</button>
   <button class="s" onclick="authMode='signup';showAuth()" ${authMode === 'signup' ? 'style="border-color:var(--ac)"' : ''}>Inscription</button></div>
   <form onsubmit="doAuth(event)">
-  ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' + (univs.length ? '<select id="un" required><option value="">— Votre université —</option>' + univs.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('') + '</select>' : '') : ''}
+  ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' + (univs.length ? '<select id="un" required><option value="">— Votre université —</option>' + univs.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('') + '</select>' : '<p class="mu" style="font-size:13px">Chargement des universités… (si la liste reste vide, vérifiez votre connexion)</p>') : ''}
   <input id="em" type="email" placeholder="Email" required>${pwField('pw', 'Mot de passe (6+ caractères)')}
   <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form>
   ${authMode === 'signup' ? '<p class="mu" style="font-size:13px;margin:10px 0 0">Après l\'inscription, votre compte est examiné par l\'administration avant l\'accès à votre espace.</p>' : ''}</div>${sig()}</div>`;
@@ -159,9 +159,10 @@ async function doAuth(e) {
   e.preventDefault();
   const email = $('#em').value.trim(), password = $('#pw').value;
   let r;
+  if (authMode === 'signup' && !($('#un') && $('#un').value)) return showAuth('Choisissez votre université : elle est obligatoire pour vous inscrire.');
   if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim(), university_id: $('#un') ? $('#un').value : '' } } });
   else r = await sb.auth.signInWithPassword({ email, password });
-  if (r.error) return showAuth(r.error.message);
+  if (r.error) return showAuth(/UNIVERSITE_REQUISE|Database error saving new user/i.test(r.error.message) ? 'Votre université est obligatoire pour vous inscrire.' : r.error.message);
   if (!r.data.session) return showAuth('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
   boot();
 }
@@ -177,10 +178,31 @@ async function boot() {
   avatarUrl = me.avatar_path ? await signed(me.avatar_path) : '';
   if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); return; }
   if (!me.active) return suspendedScreen();
+  if (me.role === 'ambassador' && !me.university_id) return univGate();
   if (me.role === 'manager') { await loadMgr(); renderMgr(); subMgr(); return; }
   if (me.stage !== 'active') { renderStage(); subSelf(); return; }
   await loadAmb(); renderAmb(); subAmb();
   if (!me.welcomed) welcome();
+}
+
+/* ---------- Université obligatoire : écran bloquant pour tout ambassadeur qui n'en a pas ---------- */
+async function univGate() {
+  const { data } = await sb.rpc('list_universities');
+  const list = data || [];
+  $('#app').innerHTML = shell('Une dernière étape, ' + esc(firstName(me.full_name)), `<div class="card"><h2>🎓 Indiquez votre université</h2>
+    <p>Pour continuer, vous devez indiquer l'université dont vous faites partie. Vos ventes seront rattachées au manager de cette université.</p>
+    ${list.length ? `<select id="gu"><option value="">— Votre université —</option>${list.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+    <p class="err" id="gue"></p><button class="p" onclick="saveUniv()">Confirmer mon université</button>
+    <p class="mu" style="font-size:13px">Ce choix est définitif : seule l'administration pourra le modifier.</p>`
+    : `<p class="err">Aucune université n'est disponible pour le moment. Contactez l'administration.</p><button class="s" onclick="boot()">Réessayer</button>`}</div>`);
+}
+async function saveUniv() {
+  const sel = $('#gu'), er = $('#gue'); er.textContent = '';
+  if (!sel.value) { er.textContent = 'Choisissez votre université.'; return; }
+  if (!confirm('Confirmer « ' + sel.selectedOptions[0].text + ' » ? Ce choix est définitif : seule l\'administration pourra le modifier.')) return;
+  const { error } = await sb.rpc('set_my_university', { p_univ: sel.value });
+  if (error) { er.textContent = errMsg(error); return; }
+  toast('Université enregistrée'); boot();
 }
 
 /* ================= INSCRIPTION AMBASSADEUR : étapes ================= */
