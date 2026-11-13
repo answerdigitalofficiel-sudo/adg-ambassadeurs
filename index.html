@@ -185,6 +185,26 @@ async function boot() {
   if (!me.welcomed) welcome();
 }
 
+/* ---------- Université obligatoire : écran bloquant pour tout ambassadeur qui n'en a pas ---------- */
+async function univGate() {
+  const { data } = await sb.rpc('list_universities');
+  const list = data || [];
+  $('#app').innerHTML = shell('Une dernière étape, ' + esc(firstName(me.full_name)), `<div class="card"><h2>🎓 Indiquez votre université</h2>
+    <p>Pour continuer, vous devez indiquer l'université dont vous faites partie. Vos ventes seront rattachées au manager de cette université.</p>
+    ${list.length ? `<select id="gu"><option value="">— Votre université —</option>${list.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+    <p class="err" id="gue"></p><button class="p" onclick="saveUniv()">Confirmer mon université</button>
+    <p class="mu" style="font-size:13px">Ce choix est définitif : seule l'administration pourra le modifier.</p>`
+    : `<p class="err">Aucune université n'est disponible pour le moment. Contactez l'administration.</p><button class="s" onclick="boot()">Réessayer</button>`}</div>`);
+}
+async function saveUniv() {
+  const sel = $('#gu'), er = $('#gue'); er.textContent = '';
+  if (!sel.value) { er.textContent = 'Choisissez votre université.'; return; }
+  if (!confirm('Confirmer « ' + sel.selectedOptions[0].text + ' » ? Ce choix est définitif : seule l\'administration pourra le modifier.')) return;
+  const { error } = await sb.rpc('set_my_university', { p_univ: sel.value });
+  if (error) { er.textContent = errMsg(error); return; }
+  toast('Université enregistrée'); boot();
+}
+
 /* ================= INSCRIPTION AMBASSADEUR : étapes ================= */
 function subSelf() {
   chan = sb.channel('self-' + me.id).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${me.id}` }, () => boot()).subscribe();
