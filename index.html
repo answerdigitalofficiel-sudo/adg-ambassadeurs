@@ -624,7 +624,7 @@ async function setMgr(uid) {
 async function unsetMgr(id) { if (!confirm('Retirer le rôle de manager ?')) return; const { error } = await sb.rpc('admin_set_role', { p_user: id, p_role: 'ambassador', p_univ: null }); if (error) return alert(error.message); await refresh(); }
 async function setUniv(id, v) { const { error } = await sb.rpc('admin_set_university', { p_user: id, p_univ: v || null }); if (error) return alert(error.message); toast('Université mise à jour'); await refresh(); }
 
-async function installApp() { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
+async function installApp() { if (!deferredInstall) return alert('Pour installer l’application : ouvrez le menu du navigateur (⋮ ou ☰), puis « Ajouter à l’écran d’accueil » (sur Huawei : « Ajouter à » puis « Écran d’accueil »). Si l’option n’existe pas ou si l’affichage est déformé, ouvrez ce lien dans Chrome, Firefox ou Edge.'); deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = $('#inst'); if (b) b.style.display = ''; });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 boot().finally(() => setTimeout(() => { const s = $('#splash'); if (s) { s.classList.add('off'); setTimeout(() => s.remove(), 500); } }, 900));
