@@ -57,7 +57,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 4px;t
 .cyl{width:60px;height:3px;background:#22d3ee;margin:10px auto 0;border-radius:2px}
 .an rect{transform-box:fill-box;transform-origin:center;animation:pop .45s cubic-bezier(.2,1.4,.4,1) both}
 @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
-#splash{position:fixed;inset:0;background:#0b1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
+#splash{position:fixed;top:0;right:0;bottom:0;left:0;background:#0b1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;transition:opacity .5s}
 #splash.off{opacity:0}
 
 .pw{position:relative}.pw input{padding-right:44px}.eye{position:absolute;right:4px;top:3px;background:none;border:0;font-size:18px;padding:8px;color:var(--mu);cursor:pointer}
@@ -65,7 +65,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 4px;t
 .box{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px}.box small{display:block;color:var(--mu)}
 .bd{display:inline-block;min-width:18px;padding:0 6px;border-radius:20px;background:var(--ko);color:#fff;font-size:11px;margin-left:3px}
 .av{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--ac);vertical-align:middle;margin-right:6px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:center;justify-content:center;padding:14px}
+.modal{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:center;justify-content:center;padding:14px}
 .modal>div{background:var(--card);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto}
 .modal img{width:100%;border-radius:10px;margin:6px 0}
 .tour{position:fixed;left:12px;right:12px;bottom:74px;z-index:25;max-width:420px;margin:0 auto;background:var(--nv);color:#fff;border-radius:14px;padding:12px 14px;border-left:5px solid var(--ac);box-shadow:0 8px 24px rgba(0,0,0,.35)}
@@ -80,6 +80,14 @@ label.chk{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8
 <body>
 <div id="splash"></div>
 <div id="app"></div>
+<script>
+/* Navigateur trop ancien (anciens téléphones Huawei/Android) : le script principal ne peut pas se charger -> message clair. */
+try { new Function('return ({}).a?.b ?? 1'); } catch (e) {
+  var _s = document.getElementById('splash'); if (_s) _s.style.display = 'none';
+  document.body.style.background = '#0b1f3c';
+  document.getElementById('app').innerHTML = '<div style="padding:28px 20px;max-width:460px;margin:auto;font:16px/1.5 sans-serif;color:#fff;text-align:center"><h2>Navigateur trop ancien</h2><p>Cette application a besoin d’un navigateur plus récent.</p><p>Installez ou mettez à jour <b>Chrome</b>, <b>Firefox</b> ou <b>Edge</b>, puis rouvrez ce lien dedans et choisissez <b>« Ajouter à l’écran d’accueil »</b>.</p></div>';
+}
+</script>
 <script>
 /* ====== CONFIGURATION Supabase ====== */
 const CFG = { URL: 'https://kearpnvypzztnnltmrpp.supabase.co', KEY: 'sb_publishable_whfpzyuXH1Qup_q2h5wPdg_QY9uKqpA' };
@@ -133,7 +141,7 @@ const CELLS = [[2,0,'#a3e635'],[3,0,'#bef264'],[4,0,'#bef264'],[1,1,'#4ade80'],[
 const LOGO = (s = 32, anim = false) => `<svg class="${anim ? 'an' : ''}" width="${s}" height="${s}" viewBox="0 0 325 325" aria-label="Answer Digital">${CELLS.map(([c, r, f], i) => `<rect x="${c * 67}" y="${r * 67}" width="58" height="58" rx="13" fill="${f}" ${anim ? `style="animation-delay:${i * 0.06}s"` : ''}/>`).join('')}</svg>`;
 const sig = () => `<div class="sig">${LOGO(18)}<span><b>Answer Digital</b> · Technology. Innovation. Solutions.</span></div>`;
 $('#splash').innerHTML = `${LOGO(110, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">ADG Ambassadeurs</div>`;
-const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div>${avatarUrl ? `<img class="av" src="${esc(avatarUrl)}" alt="">` : ''}${me && me.role === 'ambassador' && me.stage === 'active' ? '<button onclick="startTour()" title="Guide">?</button>' : ''}<button id="inst" onclick="installApp()" style="display:${deferredInstall ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
+const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div>${avatarUrl ? `<img class="av" src="${esc(avatarUrl)}" alt="">` : ''}${me && me.role === 'ambassador' && me.stage === 'active' ? '<button onclick="startTour()" title="Guide">?</button>' : ''}<button id="inst" onclick="installApp()" style="display:${deferredInstall || !(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
 
 /* ---------- AUTH ---------- */
 function showAuth(err = '') {
@@ -616,7 +624,7 @@ async function setMgr(uid) {
 async function unsetMgr(id) { if (!confirm('Retirer le rôle de manager ?')) return; const { error } = await sb.rpc('admin_set_role', { p_user: id, p_role: 'ambassador', p_univ: null }); if (error) return alert(error.message); await refresh(); }
 async function setUniv(id, v) { const { error } = await sb.rpc('admin_set_university', { p_user: id, p_univ: v || null }); if (error) return alert(error.message); toast('Université mise à jour'); await refresh(); }
 
-async function installApp() { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
+async function installApp() { if (!deferredInstall) return alert('Pour installer l’application : ouvrez le menu du navigateur (⋮ ou ☰), puis « Ajouter à l’écran d’accueil » (sur Huawei : « Ajouter à » puis « Écran d’accueil »). Si l’option n’existe pas ou si l’affichage est déformé, ouvrez ce lien dans Chrome, Firefox ou Edge.'); deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; const b = $('#inst'); if (b) b.style.display = 'none'; }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = $('#inst'); if (b) b.style.display = ''; });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 boot().finally(() => setTimeout(() => { const s = $('#splash'); if (s) { s.classList.add('off'); setTimeout(() => s.remove(), 500); } }, 900));
