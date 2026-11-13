@@ -81,6 +81,14 @@ label.chk{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8
 <div id="splash"></div>
 <div id="app"></div>
 <script>
+/* Navigateur trop ancien (anciens téléphones Huawei/Android) : le script principal ne peut pas se charger -> message clair. */
+try { new Function('return ({}).a?.b ?? 1'); } catch (e) {
+  var _s = document.getElementById('splash'); if (_s) _s.style.display = 'none';
+  document.body.style.background = '#0b1f3c';
+  document.getElementById('app').innerHTML = '<div style="padding:28px 20px;max-width:460px;margin:auto;font:16px/1.5 sans-serif;color:#fff;text-align:center"><h2>Navigateur trop ancien</h2><p>Cette application a besoin d’un navigateur plus récent.</p><p>Installez ou mettez à jour <b>Chrome</b>, <b>Firefox</b> ou <b>Edge</b>, puis rouvrez ce lien dedans et choisissez <b>« Ajouter à l’écran d’accueil »</b>.</p></div>';
+}
+</script>
+<script>
 /* ====== CONFIGURATION Supabase ====== */
 const CFG = { URL: 'https://kearpnvypzztnnltmrpp.supabase.co', KEY: 'sb_publishable_whfpzyuXH1Qup_q2h5wPdg_QY9uKqpA' };
 /* ==================================== */
