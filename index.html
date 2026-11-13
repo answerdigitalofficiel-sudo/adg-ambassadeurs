@@ -159,6 +159,7 @@ async function doAuth(e) {
   e.preventDefault();
   const email = $('#em').value.trim(), password = $('#pw').value;
   let r;
+  if (authMode === 'signup' && !($('#un') && $('#un').value)) return showAuth('Choisissez votre université : elle est obligatoire pour vous inscrire.');
   if (authMode === 'signup') r = await sb.auth.signUp({ email, password, options: { data: { full_name: $('#fn').value.trim(), phone: $('#ph').value.trim(), university_id: $('#un') ? $('#un').value : '' } } });
   else r = await sb.auth.signInWithPassword({ email, password });
   if (r.error) return showAuth(r.error.message);
