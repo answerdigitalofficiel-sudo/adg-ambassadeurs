@@ -265,21 +265,26 @@ function endTour() {
 
 /* ================= AMBASSADEUR ================= */
 async function loadAmb() {
-  const [led, sales, notifs, apps, reqs] = await Promise.all([
+  const [led, sales, notifs, apps, reqs, debts, pays, tgs, prg] = await Promise.all([
     sb.from('points_ledger').select('*, sales(client_name, apps(name))').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('sales').select('*, apps(name)').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
     sb.from('apps').select('*').eq('active', true),
-    sb.from('client_requests').select('*, apps(name, price, currency)').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(40)
+    sb.from('client_requests').select('*, apps(name, price, currency)').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(40),
+    sb.from('debts').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('payments').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('targets').select('*').gte('end_date', addDays(todayK(), -29)),
+    sb.from('daily_progress').select('*').gte('day', addDays(todayK(), -29))
   ]);
-  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [] };
+  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [], debts: debts.data || [], pays: pays.data || [], targets: tgs.data || [], prog: prg.data || [] };
+  D.team = me.is_chief ? await loadTeamGoals() : null;
 }
 function subAmb() {
   chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
     async p => { toast('🎉 ' + p.new.message); await loadAmb(); if (!openReq && tourI < 0) renderAmb(); }).subscribe();
 }
 function renderAmb() {
-  const total = D.led.reduce((a, l) => a + l.points, 0), totalUsd = D.led.reduce((a, l) => a + (+l.usd || 0), 0);
+  const total = unpaid(D.led).reduce((a, l) => a + l.points, 0), totalUsd = unpaid(D.led).reduce((a, l) => a + (+l.usd || 0), 0);
   const ms = months(), cur = ms[5], prev = ms[4];
   const sm = m => D.led.filter(l => mk(l.created_at) === m).reduce((a, l) => a + l.points, 0);
   const nm = m => D.sales.filter(s => s.status === 'validated' && mk(s.validated_at || s.created_at) === m).length;
@@ -289,9 +294,11 @@ function renderAmb() {
   let body = '';
   if (tab === 'home') body = `
     <div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(totalUsd) : total}</b><div style="margin-top:6px">${usdBtn}</div></div>
+    ${(D.pays || []).length ? `<div class="kpi"><small>Déjà payé</small><b>${usd(sum(D.pays, 'net_usd'))}</b></div>` : ''}
     <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
     <div class="kpi"><small>En attente</small><b>${pend}</b></div>
     <div class="kpi"><small>Ce mois vs dernier</small><b>${sm(cur)}</b> ${trend(sm(cur), sm(prev))}</div></div>
+    <div style="margin-top:12px">${debtWarn(D.debts)}${activeTg(D.targets || [], 'day') ? '' : '<div class="card" style="border-color:var(--wa)"><h2>🎯 Objectif du jour non fixé</h2><p class="mu" style="margin:0 0 8px">Indiquez combien de personnes vous allez atteindre aujourd\'hui.</p><button class="p" onclick="tab=\'goals\';renderAmb()">Fixer mon objectif</button></div>'}</div>
     <div class="card" id="codeCard" style="margin-top:12px"><h2>Mon code ambassadeur${me.is_chief ? ' · 👑 en chef' : ''}</h2><b style="font-size:22px;letter-spacing:1px">${esc(me.referral_code)}</b>
     <p class="mu" style="margin:6px 0">Donnez ce code à vos clients : ils vous choisissent dans l'application achetée, puis vous remplissez leur formulaire dans « Demandes ».</p>
     <button class="s" onclick="navigator.clipboard.writeText('${esc(me.referral_code)}');toast('Code copié')">Copier le code</button></div>
@@ -299,12 +306,15 @@ function renderAmb() {
     <div class="card"><h2>Évolution des points (6 mois)</h2><canvas id="c1" height="170"></canvas></div>
     <div class="card"><h2>Notifications</h2>${D.notifs.length ? D.notifs.map(n => `<div class="row"><div>${esc(n.message)}<br><small>${fmtD(n.created_at)}</small></div></div>`).join('') : '<p class="mu">Rien pour le moment.</p>'}</div>`;
   if (tab === 'reqs') body = reqsHtml();
+  if (tab === 'goals') body = goalsHtml() + (me.is_chief && D.team ? '<div class="sec">👑 Objectifs de mon équipe</div>' + teamGoalsHtml(D.team) : '');
   if (tab === 'clients') body = `<div class="card"><h2>Mes clients (${D.sales.length})</h2>${D.sales.length ? D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? 'Cash' : 'Mobile money'} · ${fmtD(s.created_at)}</small></div><b>${s.status === 'validated' ? '+' + (D.led.find(l => l.sale_id === s.id)?.points ?? 0) : ''}</b></div>`).join('') : '<p class="mu">Aucun client pour l\'instant.</p>'}</div>`;
-  if (tab === 'pts') body = `<div class="card"><h2>Total : ${showUsd ? usd(totalUsd) : total + ' points'}</h2>${usdBtn}</div>
-    <div class="card"><h2>Historique des points</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
+  if (tab === 'pts') body = `<div class="card"><h2>À payer : ${showUsd ? usd(totalUsd) : total + ' points'}</h2><small class="mu">Le compteur repart à zéro à chaque paiement.</small><br>${usdBtn}</div>
+    ${myDebtsHtml(D.debts)}${payArchiveHtml(D.pays)}
+    <div class="card"><h2>Historique des points</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}${l.payment_id ? ' · ✅ payé' : ''}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
     <div class="card"><h2>Clients validés par mois</h2><canvas id="c2" height="170"></canvas></div>`;
   $('#app').innerHTML = shell('Bonjour ' + esc(firstName(me.full_name)), body,
-    `<nav>${[['home', '🏠 Accueil'], ['reqs', '📝 Demandes' + (openReqs.length ? `<span class="bd">${openReqs.length}</span>` : '')], ['clients', '👥 Clients'], ['pts', '⭐ Points']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" onclick="tab='${k}';openReq=null;renderAmb()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '🏠 Accueil'], ['reqs', '📝 Demandes' + (openReqs.length ? `<span class="bd">${openReqs.length}</span>` : '')], ['clients', '👥 Clients'], ['goals', '🎯 Objectifs'], ['pts', '⭐ Points']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" onclick="tab='${k}';openReq=null;renderAmb()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'goals') { drawMyGoals(); if (me.is_chief && D.team) drawTeamGoals(D.team); }
   if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(sm), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
   if (tab === 'pts') drawChart('c2', { type: 'bar', data: { labels: ms.map(label), datasets: [{ label: 'Clients', data: ms.map(nm), backgroundColor: '#2dd4bf' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
@@ -365,17 +375,20 @@ async function addSale(e) {
 
 /* ================= ADMIN ================= */
 async function loadAdmin() {
-  const [sales, ppl, led, apps, nums, uni, mled] = await Promise.all([
+  const [sales, ppl, led, apps, nums, uni, mled, debts, pays] = await Promise.all([
     sb.from('sales').select('*, apps(name), profiles(full_name, referral_code, phone)').order('created_at', { ascending: false }),
     sb.from('profiles').select('*').neq('role', 'admin').order('created_at'),
     sb.from('points_ledger').select('*'),
     sb.from('apps').select('*').order('name'),
     sb.from('payment_numbers').select('*').order('created_at'),
     sb.from('universities').select('*').order('name'),
-    sb.from('manager_ledger').select('*')
+    sb.from('manager_ledger').select('*'),
+    sb.from('debts').select('*').order('created_at', { ascending: false }),
+    sb.from('payments').select('*').order('created_at', { ascending: false }).limit(500)
   ]);
+  const gT = await loadTeamGoals();
   const all = ppl.data || [];
-  D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [] };
+  D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [], debts: debts.data || [], pays: pays.data || [], team: gT };
 }
 function subAdmin() {
   const reload = async () => { await loadAdmin(); if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) renderAdmin(); };
@@ -448,6 +461,8 @@ function renderAdmin() {
       }).join('') +
       (free.length ? `<div class="sec">Ambassadeurs sans université</div><div class="card">${free.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b></div><select style="width:55%;margin:0" onchange="setUniv('${a.id}',this.value)"><option value="">— Affecter —</option>${D.univ.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>`).join('')}</div>` : '');
   }
+  if (tab === 'pay') body = payTabHtml();
+  if (tab === 'goals') body = teamGoalsHtml(D.team, D.univ);
   if (tab === 'add') body = `<div class="card"><h2>Ajouter un client manuellement</h2>${saleForm()}</div>`;
   if (tab === 'apps') {
     body = `<div class="sec">Applications en vente</div>${D.apps.map(a => `<div class="card"><h2>${esc(a.name)}</h2>
@@ -463,7 +478,8 @@ function renderAdmin() {
     <div class="card"><h2>Ajouter un numéro</h2><form onsubmit="addNum(event)"><select id="nn"><option>Airtel Money</option><option>Orange Money</option><option>M-Pesa</option><option>Africell Money</option><option>Autre</option></select><input id="nm" type="tel" placeholder="Numéro" required><input id="nl" placeholder="Nom du titulaire (optionnel)"><button class="p">Ajouter</button></form></div>`;
   }
   $('#app').innerHTML = shell('Admin — Ambassadeurs', body,
-    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['pay', '💰 Paie'], ['goals', '🎯 Obj.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'goals') drawTeamGoals(D.team);
   if (tab === 'home') {
     drawChart('c1', { type: 'bar', data: { labels: ms.map(label), datasets: [
       { label: 'Via ambassadeurs', data: ms.map(m => val.filter(s => s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#4ade80' },
@@ -574,16 +590,19 @@ async function mgrActive(id, flag) {
 
 /* ---------- Compte MANAGER ---------- */
 async function loadMgr() {
-  const [team, sales, led, mled, apps, un, nt] = await Promise.all([
+  const [team, sales, led, mled, apps, un, nt, debts, pays] = await Promise.all([
     sb.from('profiles').select('*').eq('role', 'ambassador').order('created_at'),
     sb.from('sales').select('*, apps(name), profiles(full_name, referral_code)').order('created_at', { ascending: false }),
     sb.from('points_ledger').select('*'),
     sb.from('manager_ledger').select('*, sales(client_name, apps(name)), profiles:ambassador_id(full_name)').eq('manager_id', me.id).order('created_at', { ascending: false }),
     sb.from('apps').select('*').eq('active', true),
     sb.from('universities').select('*'),
-    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20)
+    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
+    sb.from('debts').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('payments').select('*').eq('person_id', me.id).order('created_at', { ascending: false })
   ]);
-  D = { notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
+  const gT = await loadTeamGoals();
+  D = { debts: debts.data || [], pays: pays.data || [], team: gT, notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
 }
 function subMgr() {
   const soft = async () => { await loadMgr(); if (!typing()) renderMgr(); };
@@ -599,12 +618,12 @@ function subMgr() {
 }
 function renderMgr() {
   const team = D.ambs, active = team.filter(a => a.stage === 'active'), toDo = team.filter(a => a.stage === 'pending' || a.stage === 'review').length;
-  const mp = sum(D.mled, 'points'), mu = sum(D.mled, 'usd'), todayL = D.mled.filter(l => sameDay(l.created_at));
+  const mp = sum(unpaid(D.mled), 'points'), mu = sum(unpaid(D.mled), 'usd'), todayL = D.mled.filter(l => sameDay(l.created_at));
   const rate = D.apps.length ? D.apps.map(a => a.manager_points_per_sale + ' pt' + (a.manager_points_per_sale > 1 ? 's' : '') + ' (' + esc(a.name) + ')').join(', ') : '—';
   const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderMgr()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   const ms = months(), msum = m => sum(D.mled.filter(l => mk(l.created_at) === m), 'points');
   let body = '';
-  if (tab === 'home') body = `<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(mu) : mp}</b><div style="margin-top:6px">${usdBtn}</div></div>
+  if (tab === 'home') body = `${debtWarn(D.debts)}<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(mu) : mp}</b><div style="margin-top:6px">${usdBtn}</div></div>
     <div class="kpi"><small>Aujourd'hui</small><b>${showUsd ? usd(sum(todayL, 'usd')) : sum(todayL, 'points')}</b></div>
     <div class="kpi"><small>Ambassadeurs actifs</small><b>${active.length}</b></div>
     <div class="kpi"><small>Ventes validées</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div></div>
@@ -622,17 +641,181 @@ function renderMgr() {
       (p2.length ? `<div class="sec">Étape 2 — Dossiers à vérifier (${p2.length})</div><div class="card">${p2.map(a => row(a, `<button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>`)).join('')}</div>` : '') +
       `<div class="sec">Mon équipe (${rest.length})</div><div class="card"><div style="margin-bottom:8px">${usdBtn}</div>${teamList(rest, D.sales, D.led, 'mgr')}</div>`;
   }
+  if (tab === 'goals') body = teamGoalsHtml(D.team);
   if (tab === 'sales') body = `<div class="card"><h2>Ventes de mon équipe (${D.sales.length})</h2>${D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'} · ${fmtD(s.created_at)}</small><br><small>👤 ${esc(s.profiles?.full_name || '—')}</small></div></div>`).join('') || '<p class="mu">Aucune vente pour le moment.</p>'}</div>`;
   if (tab === 'pts') {
     const days = {}; D.mled.forEach(l => { const k = new Date(l.created_at).toLocaleDateString('fr-FR'); (days[k] = days[k] || { n: 0, p: 0, u: 0 }); days[k].n++; days[k].p += l.points; days[k].u += +l.usd; });
-    body = `<div class="card"><h2>Total : ${showUsd ? usd(mu) : mp + ' points'}</h2>${usdBtn}</div>
+    body = `<div class="card"><h2>À payer : ${showUsd ? usd(mu) : mp + ' points'}</h2><small class="mu">Le compteur repart à zéro à chaque paiement.</small><br>${usdBtn}</div>
+      ${myDebtsHtml(D.debts)}${payArchiveHtml(D.pays)}
       <div class="card"><h2>Par jour</h2>${Object.keys(days).length ? `<table><tr><th>Jour</th><th>Ventes</th><th>${showUsd ? 'Gain' : 'Points'}</th></tr>${Object.entries(days).slice(0, 31).map(([d, x]) => `<tr><td>${d}</td><td>${x.n}</td><td><b>${showUsd ? usd(x.u) : x.p}</b></td></tr>`).join('')}</table>` : '<p class="mu">Aucun gain pour le moment.</p>'}</div>
       <div class="card"><h2>Détail</h2>${D.mled.map(l => `<div class="row"><div><b>${esc(l.profiles?.full_name || 'Ambassadeur')}</b><br><small>${esc(l.sales?.client_name || '')} · ${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') || '<p class="mu">—</p>'}</div>`;
   }
   $('#app').innerHTML = shell('Manager — ' + esc(D.univ?.name || 'Université'), body,
-    `<nav>${[['home', '🏠 Accueil'], ['team', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['sales', '🧾 Ventes'], ['pts', '⭐ Points']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderMgr()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '🏠 Accueil'], ['team', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['sales', '🧾 Ventes'], ['goals', '🎯 Objectifs'], ['pts', '⭐ Points']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderMgr()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'goals') drawTeamGoals(D.team);
   if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(msum), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
+
+/* ---------- Dettes, paiements et objectifs ---------- */
+const debtLeft = d => (+d.amount_usd || 0) - (+d.repaid_usd || 0);
+const unpaid = l => (l || []).filter(x => !x.payment_id);
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const todayK = () => new Date(Date.now() + 3600000).toISOString().slice(0, 10); /* jour de Kinshasa (UTC+1) */
+const addDays = (k, n) => { const d = new Date(k + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const fmtK = k => new Date(k + 'T12:00:00Z').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+const pct = (r, t) => t > 0 ? Math.round(r / t * 100) : 0;
+const bar = p => `<div style="background:var(--bd);border-radius:8px;height:10px;margin:6px 0"><div style="width:${Math.min(100, p)}%;height:10px;border-radius:8px;background:${p >= 100 ? 'var(--ok)' : 'var(--ac)'}"></div></div>`;
+const kindTxt = { day: 'du jour', '3days': 'sur 3 jours', week: 'sur la semaine' };
+
+function myDebtsHtml(debts) {
+  debts = debts || []; if (!debts.length) return '';
+  const open = debts.filter(d => d.status === 'open'), tot = open.reduce((a, d) => a + debtLeft(d), 0);
+  return `<div class="card"><h2>💳 Mes dettes envers l'administration</h2>
+    <p style="margin:4px 0">${open.length ? `Reste à rembourser : <b class="down">${usd(tot)}</b><br><small class="mu">Elles sont déduites automatiquement de votre prochain paiement.</small>` : '<span class="mu">Aucune dette en cours.</span>'}</p>
+    ${debts.map(d => `<div class="row"><div><b>${usd(d.amount_usd)}</b> ${d.status === 'settled' ? '✅ remboursée' : d.status === 'cancelled' ? '🚫 annulée' : ''}<br><small>${esc(d.reason || 'Dette')} · ${fmtD(d.created_at)}${d.status === 'open' && +d.repaid_usd > 0 ? ' · déjà remboursé ' + usd(d.repaid_usd) : ''}</small></div><b class="${d.status === 'open' ? 'down' : 'mu'}">${d.status === 'open' ? usd(debtLeft(d)) : ''}</b></div>`).join('')}</div>`;
+}
+const debtWarn = debts => { const t = (debts || []).filter(d => d.status === 'open').reduce((a, d) => a + debtLeft(d), 0); return t > 0 ? `<div class="card" style="border-color:var(--wa)"><b>💳 Dette en cours : <span class="down">${usd(t)}</span></b><br><small class="mu">Déduite automatiquement de votre prochain paiement. Détail dans l'onglet « Points ».</small></div>` : ''; };
+function payRows(pays, showWho) {
+  return pays.map(p => `<div class="row" style="align-items:flex-start"><div>${showWho ? '<b>' + esc(p.person_name) + '</b> · <small>' + (p.person_role === 'manager' ? 'Manager' : 'Ambassadeur') + (p.person_univ ? ' · ' + esc(p.person_univ) : '') + '</small><br>' : ''}<b>${fmtD(p.created_at)}</b> · ${esc(p.method)}${p.reference ? ' · réf. ' + esc(p.reference) : ''}<br>
+    <small>Gains ${usd(p.gross_usd)} (${p.points} pts)${+p.debt_usd > 0 ? ' · dettes déduites −' + usd(p.debt_usd) : ''}</small>
+    ${(p.debt_detail || []).map(x => `<br><small class="mu">↳ ${esc(x.reason || 'Dette')} : −${usd(x.deducted)}${+x.remaining > 0 ? ' (reste ' + usd(x.remaining) + ')' : ' (soldée)'}</small>`).join('')}</div><b class="up">${usd(p.net_usd)}</b></div>`).join('');
+}
+const payArchiveHtml = pays => `<div class="card"><h2>🧾 Archive de mes paiements</h2><p class="mu" style="margin:0 0 6px"><small>Archive définitive : elle ne peut être ni modifiée ni supprimée.</small></p>${(pays || []).length ? payRows(pays) : '<p class="mu">Aucun paiement pour le moment.</p>'}</div>`;
+
+async function loadTeamGoals() {
+  const from = addDays(todayK(), -29);
+  const [m, t, p] = await Promise.all([sb.rpc('team_members'), sb.rpc('team_targets', { p_from: from }), sb.rpc('team_progress', { p_from: from })]);
+  return { members: m.data || [], targets: t.data || [], prog: p.data || [] };
+}
+function dayRows(targets, prog, n) {
+  const t = todayK(), out = [];
+  for (let i = 0; i < n; i++) {
+    const k = addDays(t, -i), tg = targets.find(x => x.kind === 'day' && x.start_date === k), pr = prog.find(x => x.day === k);
+    out.push({ k, target: tg ? tg.target : 0, reached: pr ? pr.reached : 0 });
+  }
+  return out;
+}
+const periodReached = (prog, tg) => { const t = todayK(), to = tg.end_date < t ? tg.end_date : t; return prog.filter(x => x.day >= tg.start_date && x.day <= to).reduce((a, x) => a + x.reached, 0); };
+const activeTg = (targets, kind) => { const t = todayK(); return targets.find(x => x.kind === kind && x.start_date <= t && x.end_date >= t); };
+const tgCell = (targets, prog, kind) => { const g = activeTg(targets, kind); return g ? periodReached(prog, g) + ' / ' + g.target : '<span class="mu">—</span>'; };
+
+/* Vue équipe (manager, ambassadeur en chef, administration) */
+function teamGoalsHtml(T, univs) {
+  const t = todayK(), mem = T.members;
+  if (!mem.length) return '<div class="card"><p class="mu">Aucun ambassadeur actif à suivre pour le moment.</p></div>';
+  const un = m => esc(((univs || []).find(u => u.id === m.university_id) || {}).name || '');
+  const rows = mem.map(m => {
+    const tg = T.targets.filter(x => x.ambassador_id === m.id), pr = T.prog.filter(x => x.ambassador_id === m.id);
+    const d = dayRows(tg, pr, 14), today = d[0];
+    const w1 = d.slice(0, 7).reduce((a, x) => a + x.reached, 0), w0 = d.slice(7, 14).reduce((a, x) => a + x.reached, 0);
+    return { m, tg, pr, today, w1, w0 };
+  });
+  const tot = rows.reduce((a, r) => ({ t: a.t + r.today.target, r: a.r + r.today.reached, n: a.n + (r.today.target ? 1 : 0) }), { t: 0, r: 0, n: 0 });
+  const days = [...Array(14).keys()].map(i => addDays(t, -i)).map(k => ({ k, t: rows.reduce((a, r) => a + (r.tg.find(x => x.kind === 'day' && x.start_date === k) || { target: 0 }).target, 0), r: rows.reduce((a, r) => a + ((r.pr.find(x => x.day === k) || { reached: 0 }).reached), 0), n: rows.filter(r => r.tg.some(x => x.kind === 'day' && x.start_date === k)).length }));
+  return `<div class="grid"><div class="kpi"><small>Objectif du jour (équipe)</small><b>${tot.t}</b></div><div class="kpi"><small>Atteints aujourd'hui</small><b>${tot.r}</b> <small>${pct(tot.r, tot.t)}%</small></div><div class="kpi"><small>Ont fixé leur objectif</small><b>${tot.n}/${mem.length}</b></div></div>
+  <div class="card" style="margin-top:12px"><h2>🎯 Aujourd'hui — ${fmtK(t)}</h2><div style="overflow-x:auto"><table><tr><th>Ambassadeur</th>${univs ? '<th>Univ.</th>' : ''}<th>Jour</th><th>3 jours</th><th>Semaine</th><th>7 j</th></tr>
+  ${rows.map(r => `<tr><td>${esc(r.m.full_name)} ${r.m.is_chief ? '👑' : ''}</td>${univs ? '<td><small>' + un(r.m) + '</small></td>' : ''}<td>${r.today.target ? `<b>${r.today.reached} / ${r.today.target}</b> <small class="${pct(r.today.reached, r.today.target) >= 100 ? 'up' : 'mu'}">${pct(r.today.reached, r.today.target)}%</small>` : '<span class="down">non fixé</span>'}</td><td>${tgCell(r.tg, r.pr, '3days')}</td><td>${tgCell(r.tg, r.pr, 'week')}</td><td>${r.w1} ${trend(r.w1, r.w0)}</td></tr>`).join('')}</table></div></div>
+  <div class="card"><h2>Progression par jour (équipe, 14 jours)</h2><canvas id="c4" height="170"></canvas></div>
+  <div class="card"><h2>Comparaison jour par jour</h2><table><tr><th>Jour</th><th>Objectifs</th><th>Atteints</th><th>%</th></tr>${days.map((x, i) => `<tr><td>${i === 0 ? 'Aujourd\'hui' : fmtK(x.k)}</td><td>${x.t} <small class="mu">(${x.n} amb.)</small></td><td><b>${x.r}</b></td><td>${x.t ? pct(x.r, x.t) + '%' : '—'}</td></tr>`).join('')}</table></div>`;
+}
+function drawTeamGoals(T) {
+  const t = todayK(), ks = [...Array(14).keys()].map(i => addDays(t, -(13 - i)));
+  drawChart('c4', { type: 'bar', data: { labels: ks.map(fmtK), datasets: [
+    { label: 'Objectifs', data: ks.map(k => T.targets.filter(x => x.kind === 'day' && x.start_date === k).reduce((a, x) => a + x.target, 0)), backgroundColor: '#94a3b8' },
+    { label: 'Atteints', data: ks.map(k => T.prog.filter(x => x.day === k).reduce((a, x) => a + x.reached, 0)), backgroundColor: '#4ade80' }] }, options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+/* Objectifs de l'ambassadeur (lui-même) */
+function goalsHtml() {
+  const tg = D.targets || [], pr = D.prog || [], t = todayK(), day = activeTg(tg, 'day'), today = dayRows(tg, pr, 1)[0];
+  const setForm = (kind, label) => `<div class="card"><h2>🎯 Objectif ${kindTxt[kind]}</h2><p class="mu" style="margin:0 0 6px">${label}</p><div style="display:flex;gap:6px"><input id="tg-${kind}" type="number" min="1" inputmode="numeric" placeholder="Nombre de personnes" style="margin:0"><button class="ok" onclick="setTgt('${kind}')">Valider</button></div></div>`;
+  let h = '';
+  if (!day) h += `<div class="card" style="border-color:var(--wa)"><h2>🎯 Fixez votre objectif du jour</h2><p class="mu" style="margin:0 0 6px">Combien de personnes allez-vous atteindre aujourd'hui (${fmtK(t)}) ? Votre manager et l'administration le voient. Il repart à zéro chaque jour.</p><div style="display:flex;gap:6px"><input id="tg-day" type="number" min="1" inputmode="numeric" placeholder="Nombre de personnes" style="margin:0"><button class="ok" onclick="setTgt('day')">Valider</button></div></div>`;
+  else h += `<div class="card"><h2>🎯 Aujourd'hui — ${fmtK(t)}</h2><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:28px">${today.reached} / ${day.target}</b><b class="${pct(today.reached, day.target) >= 100 ? 'up' : ''}">${pct(today.reached, day.target)}%</b></div>${bar(pct(today.reached, day.target))}
+    <p class="mu" style="margin:0 0 6px"><small>Personnes atteintes aujourd'hui : ajoutez-les au fur et à mesure.</small></p>
+    <div class="acts"><button class="ok" onclick="addReach(1)">+1</button><button class="ok" onclick="addReach(5)">+5</button><button class="ok" onclick="addReach(10)">+10</button><button class="s" onclick="addReach(-1)">−1</button></div>
+    <div style="display:flex;gap:6px;margin-top:10px"><input id="tg-day" type="number" min="1" inputmode="numeric" value="${day.target}" style="margin:0"><button class="s" onclick="setTgt('day')">Modifier l'objectif</button></div></div>`;
+  ['3days', 'week'].forEach(kind => {
+    const g = activeTg(tg, kind);
+    if (!g) { h += setForm(kind, kind === '3days' ? 'Un objectif pour les 3 prochains jours (aujourd\'hui compris).' : 'Un objectif pour les 7 prochains jours (aujourd\'hui compris).'); return; }
+    const r = periodReached(pr, g), left = Math.round((new Date(g.end_date + 'T12:00:00Z') - new Date(t + 'T12:00:00Z')) / 86400000);
+    h += `<div class="card"><h2>🎯 Objectif ${kindTxt[kind]}</h2><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:24px">${r} / ${g.target}</b><b>${pct(r, g.target)}%</b></div>${bar(pct(r, g.target))}<small class="mu">Du ${fmtK(g.start_date)} au ${fmtK(g.end_date)} · ${left > 0 ? left + ' jour(s) restant(s)' : 'dernier jour'}</small>
+      <div style="display:flex;gap:6px;margin-top:8px"><input id="tg-${kind}" type="number" min="1" inputmode="numeric" value="${g.target}" style="margin:0"><button class="s" onclick="setTgt('${kind}')">Modifier</button></div></div>`;
+  });
+  const hist = dayRows(tg, pr, 14);
+  const done = hist.filter(x => x.target), best = done.reduce((a, x) => x.reached > a ? x.reached : a, 0), avg = done.length ? Math.round(done.reduce((a, x) => a + x.reached, 0) / done.length * 10) / 10 : 0, ok = done.filter(x => x.reached >= x.target).length;
+  h += `<div class="card"><h2>📈 Mes progrès (14 jours)</h2><div class="grid" style="margin-bottom:10px"><div class="kpi"><small>Moyenne / jour</small><b>${avg}</b></div><div class="kpi"><small>Meilleur jour</small><b>${best}</b></div><div class="kpi"><small>Objectifs tenus</small><b>${ok}/${done.length}</b></div></div><canvas id="c3" height="170"></canvas></div>
+    <div class="card"><h2>🗂 Archive jour par jour</h2><table><tr><th>Jour</th><th>Objectif</th><th>Atteints</th><th>%</th></tr>${hist.map((x, i) => `<tr><td>${i === 0 ? 'Aujourd\'hui' : fmtK(x.k)}</td><td>${x.target || '—'}</td><td><b>${x.reached}</b></td><td>${x.target ? `<span class="${x.reached >= x.target ? 'up' : 'mu'}">${pct(x.reached, x.target)}% ${x.reached >= x.target ? '✔' : ''}</span>` : '—'}</td></tr>`).join('')}</table></div>`;
+  const past = tg.filter(x => x.kind !== 'day' && x.end_date < t).sort((a, b) => b.start_date < a.start_date ? -1 : 1);
+  if (past.length) h += `<div class="card"><h2>🗂 Objectifs 3 jours / semaine passés</h2>${past.map(g => { const r = periodReached(pr, g); return `<div class="row"><div><b>${g.kind === '3days' ? '3 jours' : 'Semaine'}</b> · <small>${fmtK(g.start_date)} → ${fmtK(g.end_date)}</small></div><b class="${r >= g.target ? 'up' : ''}">${r} / ${g.target}</b></div>`; }).join('')}</div>`;
+  return h;
+}
+function drawMyGoals() {
+  const hist = dayRows(D.targets || [], D.prog || [], 14).reverse();
+  drawChart('c3', { type: 'bar', data: { labels: hist.map(x => fmtK(x.k)), datasets: [{ label: 'Objectif', data: hist.map(x => x.target), backgroundColor: '#94a3b8' }, { label: 'Atteints', data: hist.map(x => x.reached), backgroundColor: '#4ade80' }] }, options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+async function setTgt(kind) {
+  const v = parseInt(($('#tg-' + kind) || {}).value, 10); if (!(v >= 1)) return alert('Indiquez un nombre de personnes (minimum 1).');
+  const { error } = await sb.rpc('set_target', { p_kind: kind, p_target: v }); if (error) return alert(error.message);
+  toast('🎯 Objectif enregistré'); await loadAmb(); renderAmb();
+}
+async function addReach(n) { const { error } = await sb.rpc('add_reached', { p_delta: n }); if (error) return alert(error.message); await loadAmb(); renderAmb(); }
+
+/* ---------- Admin : paie, dettes, archive ---------- */
+function payPeople() {
+  const people = D.mgrs.map(m => ({ p: m, role: 'manager' })).concat(D.ambs.filter(a => a.stage === 'active').map(a => ({ p: a, role: 'ambassador' })));
+  return people.map(({ p, role }) => {
+    const L = unpaid(role === 'manager' ? D.mled.filter(l => l.manager_id === p.id) : D.led.filter(l => l.ambassador_id === p.id));
+    const pts = sum(L, 'points'), gross = r2(sum(L, 'usd')), debt = r2(D.debts.filter(d => d.person_id === p.id && d.status === 'open').reduce((a, d) => a + debtLeft(d), 0)), ded = Math.min(gross, debt);
+    return { p, role, pts, gross, debt, ded, net: r2(gross - ded) };
+  });
+}
+function payTabHtml() {
+  const all = payPeople(), un = a => esc((D.univ.find(u => u.id === a.university_id) || {}).name || 'Sans université');
+  const list = (F.pf === 'all' ? all : all.filter(x => x.gross > 0 || x.pts > 0 || x.debt > 0)).sort((a, b) => b.net - a.net || b.debt - a.debt);
+  const names = [...new Set(D.pays.map(x => x.person_name))].sort(), arch = D.pays.filter(x => !F.pp || x.person_name === F.pp);
+  const openD = D.debts.filter(d => d.status === 'open'), nm = id => ((D.ambs.concat(D.mgrs)).find(x => x.id === id) || {}).full_name || '—';
+  return `<div class="grid"><div class="kpi"><small>Net à payer</small><b>${usd(all.reduce((a, x) => a + x.net, 0))}</b></div><div class="kpi"><small>Dettes ouvertes</small><b class="down">${usd(openD.reduce((a, d) => a + debtLeft(d), 0))}</b></div><div class="kpi"><small>Déjà payé (archive)</small><b>${usd(sum(D.pays, 'net_usd'))}</b></div></div>
+  <div class="sec">À payer</div><div class="card"><select onchange="F.pf=this.value;renderAdmin()"><option value="">Seulement ceux à payer / avec dette</option><option value="all" ${F.pf === 'all' ? 'selected' : ''}>Tous les ambassadeurs et managers</option></select>
+  ${list.map(x => `<div class="row" style="align-items:flex-start"><div><b>${esc(x.p.full_name)}</b> <small>${x.role === 'manager' ? 'Manager' : 'Ambassadeur'} · ${un(x.p)}</small><br><small>${esc(x.p.momo_network || '')} ${esc(x.p.momo_number || '') || '<span class="down">numéro mobile money non renseigné</span>'}</small><br>
+    <small>Gains non payés : <b>${x.pts} pts · ${usd(x.gross)}</b>${x.debt > 0 ? ` · Dettes : <b class="down">${usd(x.debt)}</b> (déduit : ${usd(x.ded)})` : ''}</small><br><b>Net à payer : ${usd(x.net)}</b>
+    <div class="acts">${x.pts > 0 || x.gross > 0 ? `<button class="ok" onclick="payModal('${x.p.id}')">💰 Marquer payé</button>` : ''}<button class="s" onclick="debtModal('${x.p.id}')">➕ Dette</button></div></div></div>`).join('') || '<p class="mu">Personne à payer pour le moment : tous les compteurs sont à zéro.</p>'}</div>
+  <div class="sec">Dettes ouvertes (${openD.length})</div><div class="card">${openD.map(d => `<div class="row" style="align-items:flex-start"><div><b>${esc(nm(d.person_id))}</b> · <b class="down">${usd(debtLeft(d))}</b> <small class="mu">sur ${usd(d.amount_usd)}</small><br><small>${esc(d.reason || 'Dette')} · ${fmtD(d.created_at)}</small><div class="acts"><button class="s" onclick="repayDebt('${d.id}',${debtLeft(d)})">Remboursement reçu</button><button class="ko" onclick="cancelDebt('${d.id}')">Annuler</button></div></div></div>`).join('') || '<p class="mu">Aucune dette ouverte.</p>'}</div>
+  <div class="sec">Archive des paiements (définitive)</div><div class="card"><select onchange="F.pp=this.value;renderAdmin()"><option value="">Toutes les personnes</option>${names.map(n => `<option ${F.pp === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+  <p class="mu" style="margin:4px 0"><small>Aucune ligne ne peut être modifiée ni supprimée.${F.pp ? ' Total net payé à ' + esc(F.pp) + ' : <b>' + usd(sum(arch, 'net_usd')) + '</b>' : ''}</small></p>${arch.length ? payRows(arch, true) : '<p class="mu">Aucun paiement enregistré.</p>'}</div>`;
+}
+function openModal(html) { closeModal(); const m = document.createElement('div'); m.className = 'modal'; m.id = 'km2'; m.innerHTML = '<div>' + html + '</div>'; document.body.appendChild(m); }
+function payModal(id) {
+  const x = payPeople().find(y => y.p.id === id); if (!x) return;
+  let avail = x.gross; const dl = D.debts.filter(d => d.person_id === id && d.status === 'open').sort((a, b) => a.created_at < b.created_at ? -1 : 1).map(d => { const t = r2(Math.min(avail, debtLeft(d))); avail = r2(avail - t); return { d, t }; }).filter(z => z.t > 0);
+  openModal(`<h2>💰 Payer ${esc(x.p.full_name)}</h2><p class="mu">${x.role === 'manager' ? 'Manager' : 'Ambassadeur'} · ${esc(x.p.momo_network || '')} ${esc(x.p.momo_number || 'numéro non renseigné')}</p>
+    <div class="box"><small>Gains non payés</small><b>${x.pts} pts · ${usd(x.gross)}</b></div>
+    ${dl.length ? `<div class="box"><small>Dettes déduites automatiquement</small>${dl.map(z => `<b class="down">−${usd(z.t)}</b> <small>${esc(z.d.reason || 'Dette')}${debtLeft(z.d) > z.t ? ' (reste ' + usd(r2(debtLeft(z.d) - z.t)) + ')' : ' (soldée)'}</small><br>`).join('')}</div>` : ''}
+    <div class="box"><small>Montant à payer maintenant</small><b style="font-size:26px">${usd(x.net)}</b></div>
+    <span class="lb">Moyen de paiement</span><select id="pyM"><option>Mobile money</option><option>Cash</option><option>Autre</option></select>
+    <span class="lb">Référence / note (optionnel)</span><input id="pyR" maxlength="120" placeholder="N° de transaction…">
+    <p class="mu"><small>⚠️ Action définitive : le paiement est archivé sans possibilité de modification et le compteur repart à zéro.</small></p>
+    <button class="p" onclick="doPay('${id}',${x.gross})">✔ Confirmer : j'ai payé ${usd(x.net)}</button><button class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Annuler</button>`);
+}
+async function doPay(id, expected) {
+  const { error } = await sb.rpc('admin_pay', { p_user: id, p_method: $('#pyM').value, p_reference: $('#pyR').value.trim(), p_expected: expected });
+  if (error) return alert(error.message);
+  closeModal(); toast('💰 Paiement archivé — compteur remis à zéro'); await refresh();
+}
+function debtModal(id) {
+  const a = D.ambs.concat(D.mgrs).find(x => x.id === id); if (!a) return;
+  openModal(`<h2>➕ Dette de ${esc(a.full_name)}</h2><form onsubmit="doDebt(event,'${id}')"><span class="lb">Montant de la dette ($)</span><input id="dbA" type="number" step="0.01" min="0.01" required><span class="lb">Motif</span><input id="dbR" maxlength="300" placeholder="Ex. avance, matériel…" required>
+    <p class="mu"><small>Elle sera visible par la personne et déduite automatiquement de son prochain paiement.</small></p><button class="p">Enregistrer la dette</button><button type="button" class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Annuler</button></form>`);
+}
+async function doDebt(e, id) {
+  e.preventDefault(); const { error } = await sb.rpc('admin_add_debt', { p_user: id, p_amount: parseFloat($('#dbA').value), p_reason: $('#dbR').value.trim() });
+  if (error) return alert(error.message); closeModal(); toast('Dette enregistrée'); await refresh();
+}
+async function repayDebt(id, left) {
+  const v = prompt('Montant remboursé par la personne ($) — maximum ' + usd(left), left); if (v === null) return;
+  const { error } = await sb.rpc('admin_repay_debt', { p_id: id, p_amount: parseFloat(String(v).replace(',', '.')) }); if (error) return alert(error.message); toast('Remboursement enregistré'); await refresh();
+}
+async function cancelDebt(id) { if (!confirm('Annuler cette dette ? Le reste dû sera effacé.')) return; const { error } = await sb.rpc('admin_cancel_debt', { p_id: id }); if (error) return alert(error.message); toast('Dette annulée'); await refresh(); }
 
 /* ---------- Admin : universités, managers ---------- */
 async function addUniv(e) { e.preventDefault(); const { error } = await sb.from('universities').insert({ name: $('#un1').value.trim() }); if (error) return alert(error.message); toast('Université ajoutée'); await refresh(); }
