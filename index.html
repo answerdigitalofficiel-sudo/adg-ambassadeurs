@@ -612,7 +612,7 @@ function subMgr() {
 }
 function renderMgr() {
   const team = D.ambs, active = team.filter(a => a.stage === 'active'), toDo = team.filter(a => a.stage === 'pending' || a.stage === 'review').length;
-  const mp = sum(D.mled, 'points'), mu = sum(D.mled, 'usd'), todayL = D.mled.filter(l => sameDay(l.created_at));
+  const mp = sum(unpaid(D.mled), 'points'), mu = sum(unpaid(D.mled), 'usd'), todayL = D.mled.filter(l => sameDay(l.created_at));
   const rate = D.apps.length ? D.apps.map(a => a.manager_points_per_sale + ' pt' + (a.manager_points_per_sale > 1 ? 's' : '') + ' (' + esc(a.name) + ')').join(', ') : '—';
   const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderMgr()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   const ms = months(), msum = m => sum(D.mled.filter(l => mk(l.created_at) === m), 'points');
