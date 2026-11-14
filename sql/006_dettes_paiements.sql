@@ -62,7 +62,7 @@ end $$;
 drop trigger if exists payments_no_change on public.payments;
 create trigger payments_no_change before update or delete on public.payments
   for each row execute function public.payments_immutable();
-create or replace function public.payments_no_truncate() returns trigger language plpgsql as $$
+create or replace function public.payments_no_truncate() returns trigger language plpgsql set search_path = public as $$
 begin raise exception 'Archive de paiements : aucune suppression possible'; end $$;
 drop trigger if exists payments_no_trunc on public.payments;
 create trigger payments_no_trunc before truncate on public.payments
