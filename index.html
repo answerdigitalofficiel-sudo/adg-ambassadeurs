@@ -461,6 +461,8 @@ function renderAdmin() {
       }).join('') +
       (free.length ? `<div class="sec">Ambassadeurs sans université</div><div class="card">${free.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b></div><select style="width:55%;margin:0" onchange="setUniv('${a.id}',this.value)"><option value="">— Affecter —</option>${D.univ.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>`).join('')}</div>` : '');
   }
+  if (tab === 'pay') body = payTabHtml();
+  if (tab === 'goals') body = teamGoalsHtml(D.team, D.univ);
   if (tab === 'add') body = `<div class="card"><h2>Ajouter un client manuellement</h2>${saleForm()}</div>`;
   if (tab === 'apps') {
     body = `<div class="sec">Applications en vente</div>${D.apps.map(a => `<div class="card"><h2>${esc(a.name)}</h2>
