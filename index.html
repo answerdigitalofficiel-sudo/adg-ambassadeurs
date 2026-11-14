@@ -479,6 +479,7 @@ function renderAdmin() {
   }
   $('#app').innerHTML = shell('Admin — Ambassadeurs', body,
     `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['pay', '💰 Paie'], ['goals', '🎯 Obj.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+  if (tab === 'goals') drawTeamGoals(D.team);
   if (tab === 'home') {
     drawChart('c1', { type: 'bar', data: { labels: ms.map(label), datasets: [
       { label: 'Via ambassadeurs', data: ms.map(m => val.filter(s => s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#4ade80' },
