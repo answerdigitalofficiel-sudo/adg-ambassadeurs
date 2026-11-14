@@ -307,7 +307,8 @@ function renderAmb() {
     <div class="card"><h2>Notifications</h2>${D.notifs.length ? D.notifs.map(n => `<div class="row"><div>${esc(n.message)}<br><small>${fmtD(n.created_at)}</small></div></div>`).join('') : '<p class="mu">Rien pour le moment.</p>'}</div>`;
   if (tab === 'reqs') body = reqsHtml();
   if (tab === 'clients') body = `<div class="card"><h2>Mes clients (${D.sales.length})</h2>${D.sales.length ? D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? 'Cash' : 'Mobile money'} · ${fmtD(s.created_at)}</small></div><b>${s.status === 'validated' ? '+' + (D.led.find(l => l.sale_id === s.id)?.points ?? 0) : ''}</b></div>`).join('') : '<p class="mu">Aucun client pour l\'instant.</p>'}</div>`;
-  if (tab === 'pts') body = `<div class="card"><h2>Total : ${showUsd ? usd(totalUsd) : total + ' points'}</h2>${usdBtn}</div>
+  if (tab === 'pts') body = `<div class="card"><h2>À payer : ${showUsd ? usd(totalUsd) : total + ' points'}</h2><small class="mu">Le compteur repart à zéro à chaque paiement.</small><br>${usdBtn}</div>
+    ${myDebtsHtml(D.debts)}${payArchiveHtml(D.pays)}
     <div class="card"><h2>Historique des points</h2>${D.led.length ? D.led.map(l => `<div class="row"><div><b>${esc(l.sales?.client_name || '')}</b><br><small>${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') : '<p class="mu">Aucun point pour l\'instant.</p>'}</div>
     <div class="card"><h2>Clients validés par mois</h2><canvas id="c2" height="170"></canvas></div>`;
   $('#app').innerHTML = shell('Bonjour ' + esc(firstName(me.full_name)), body,
