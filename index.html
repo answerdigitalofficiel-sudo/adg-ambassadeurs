@@ -638,7 +638,8 @@ function renderMgr() {
   if (tab === 'sales') body = `<div class="card"><h2>Ventes de mon équipe (${D.sales.length})</h2>${D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'} · ${fmtD(s.created_at)}</small><br><small>👤 ${esc(s.profiles?.full_name || '—')}</small></div></div>`).join('') || '<p class="mu">Aucune vente pour le moment.</p>'}</div>`;
   if (tab === 'pts') {
     const days = {}; D.mled.forEach(l => { const k = new Date(l.created_at).toLocaleDateString('fr-FR'); (days[k] = days[k] || { n: 0, p: 0, u: 0 }); days[k].n++; days[k].p += l.points; days[k].u += +l.usd; });
-    body = `<div class="card"><h2>Total : ${showUsd ? usd(mu) : mp + ' points'}</h2>${usdBtn}</div>
+    body = `<div class="card"><h2>À payer : ${showUsd ? usd(mu) : mp + ' points'}</h2><small class="mu">Le compteur repart à zéro à chaque paiement.</small><br>${usdBtn}</div>
+      ${myDebtsHtml(D.debts)}${payArchiveHtml(D.pays)}
       <div class="card"><h2>Par jour</h2>${Object.keys(days).length ? `<table><tr><th>Jour</th><th>Ventes</th><th>${showUsd ? 'Gain' : 'Points'}</th></tr>${Object.entries(days).slice(0, 31).map(([d, x]) => `<tr><td>${d}</td><td>${x.n}</td><td><b>${showUsd ? usd(x.u) : x.p}</b></td></tr>`).join('')}</table>` : '<p class="mu">Aucun gain pour le moment.</p>'}</div>
       <div class="card"><h2>Détail</h2>${D.mled.map(l => `<div class="row"><div><b>${esc(l.profiles?.full_name || 'Ambassadeur')}</b><br><small>${esc(l.sales?.client_name || '')} · ${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') || '<p class="mu">—</p>'}</div>`;
   }
