@@ -635,6 +635,7 @@ function renderMgr() {
       (p2.length ? `<div class="sec">Étape 2 — Dossiers à vérifier (${p2.length})</div><div class="card">${p2.map(a => row(a, `<button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>`)).join('')}</div>` : '') +
       `<div class="sec">Mon équipe (${rest.length})</div><div class="card"><div style="margin-bottom:8px">${usdBtn}</div>${teamList(rest, D.sales, D.led, 'mgr')}</div>`;
   }
+  if (tab === 'goals') body = teamGoalsHtml(D.team);
   if (tab === 'sales') body = `<div class="card"><h2>Ventes de mon équipe (${D.sales.length})</h2>${D.sales.map(s => `<div class="row"><div><b>${esc(s.client_name)}</b> ${tag(s.status)}<br><small>${esc(s.apps?.name || '—')} · ${s.payment_method === 'cash' ? '💵 Cash' : '📱 Mobile money'} · ${fmtD(s.created_at)}</small><br><small>👤 ${esc(s.profiles?.full_name || '—')}</small></div></div>`).join('') || '<p class="mu">Aucune vente pour le moment.</p>'}</div>`;
   if (tab === 'pts') {
     const days = {}; D.mled.forEach(l => { const k = new Date(l.created_at).toLocaleDateString('fr-FR'); (days[k] = days[k] || { n: 0, p: 0, u: 0 }); days[k].n++; days[k].p += l.points; days[k].u += +l.usd; });
