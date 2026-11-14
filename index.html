@@ -591,9 +591,12 @@ async function loadMgr() {
     sb.from('manager_ledger').select('*, sales(client_name, apps(name)), profiles:ambassador_id(full_name)').eq('manager_id', me.id).order('created_at', { ascending: false }),
     sb.from('apps').select('*').eq('active', true),
     sb.from('universities').select('*'),
-    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20)
+    sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
+    sb.from('debts').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('payments').select('*').eq('person_id', me.id).order('created_at', { ascending: false })
   ]);
-  D = { notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
+  const gT = await loadTeamGoals();
+  D = { debts: debts.data || [], pays: pays.data || [], team: gT, notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
 }
 function subMgr() {
   const soft = async () => { await loadMgr(); if (!typing()) renderMgr(); };
