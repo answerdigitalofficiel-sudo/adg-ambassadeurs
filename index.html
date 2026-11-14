@@ -375,7 +375,7 @@ async function addSale(e) {
 
 /* ================= ADMIN ================= */
 async function loadAdmin() {
-  const [sales, ppl, led, apps, nums, uni, mled] = await Promise.all([
+  const [sales, ppl, led, apps, nums, uni, mled, debts, pays] = await Promise.all([
     sb.from('sales').select('*, apps(name), profiles(full_name, referral_code, phone)').order('created_at', { ascending: false }),
     sb.from('profiles').select('*').neq('role', 'admin').order('created_at'),
     sb.from('points_ledger').select('*'),
