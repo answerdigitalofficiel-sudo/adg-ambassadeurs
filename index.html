@@ -382,8 +382,11 @@ async function loadAdmin() {
     sb.from('apps').select('*').order('name'),
     sb.from('payment_numbers').select('*').order('created_at'),
     sb.from('universities').select('*').order('name'),
-    sb.from('manager_ledger').select('*')
+    sb.from('manager_ledger').select('*'),
+    sb.from('debts').select('*').order('created_at', { ascending: false }),
+    sb.from('payments').select('*').order('created_at', { ascending: false }).limit(500)
   ]);
+  const gT = await loadTeamGoals();
   const all = ppl.data || [];
   D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [] };
 }
