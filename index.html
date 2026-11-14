@@ -284,7 +284,7 @@ function subAmb() {
     async p => { toast('🎉 ' + p.new.message); await loadAmb(); if (!openReq && tourI < 0) renderAmb(); }).subscribe();
 }
 function renderAmb() {
-  const total = D.led.reduce((a, l) => a + l.points, 0), totalUsd = D.led.reduce((a, l) => a + (+l.usd || 0), 0);
+  const total = unpaid(D.led).reduce((a, l) => a + l.points, 0), totalUsd = unpaid(D.led).reduce((a, l) => a + (+l.usd || 0), 0);
   const ms = months(), cur = ms[5], prev = ms[4];
   const sm = m => D.led.filter(l => mk(l.created_at) === m).reduce((a, l) => a + l.points, 0);
   const nm = m => D.sales.filter(s => s.status === 'validated' && mk(s.validated_at || s.created_at) === m).length;
