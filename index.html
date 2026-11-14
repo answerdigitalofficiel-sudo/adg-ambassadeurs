@@ -265,7 +265,7 @@ function endTour() {
 
 /* ================= AMBASSADEUR ================= */
 async function loadAmb() {
-  const [led, sales, notifs, apps, reqs] = await Promise.all([
+  const [led, sales, notifs, apps, reqs, debts, pays, tgs, prg] = await Promise.all([
     sb.from('points_ledger').select('*, sales(client_name, apps(name))').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('sales').select('*, apps(name)').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
