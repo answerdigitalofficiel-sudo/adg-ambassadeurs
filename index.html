@@ -645,7 +645,7 @@ function renderMgr() {
       <div class="card"><h2>Détail</h2>${D.mled.map(l => `<div class="row"><div><b>${esc(l.profiles?.full_name || 'Ambassadeur')}</b><br><small>${esc(l.sales?.client_name || '')} · ${esc(l.sales?.apps?.name || '')} · ${fmtD(l.created_at)}</small></div><b class="up">${showUsd ? usd(l.usd) : '+' + l.points}</b></div>`).join('') || '<p class="mu">—</p>'}</div>`;
   }
   $('#app').innerHTML = shell('Manager — ' + esc(D.univ?.name || 'Université'), body,
-    `<nav>${[['home', '🏠 Accueil'], ['team', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['sales', '🧾 Ventes'], ['pts', '⭐ Points']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderMgr()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '🏠 Accueil'], ['team', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['sales', '🧾 Ventes'], ['goals', '🎯 Objectifs'], ['pts', '⭐ Points']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderMgr()">${l}</button>`).join('')}</nav>`);
   if (tab === 'home') drawChart('c1', { type: 'line', data: { labels: ms.map(label), datasets: [{ label: 'Points', data: ms.map(msum), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,.25)', fill: true, tension: .3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
 
