@@ -50,7 +50,7 @@ create policy payments_select on public.payments for select using (person_id = a
 revoke insert, update, delete, truncate on public.payments from anon, authenticated;
 
 create or replace function public.payments_immutable() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
   -- Seule exception : la suppression d'un compte met person_id à NULL (le nom reste archivé dans la ligne).
   if tg_op = 'UPDATE' and new.person_id is null
