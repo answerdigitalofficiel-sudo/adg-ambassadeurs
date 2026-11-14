@@ -270,9 +270,14 @@ async function loadAmb() {
     sb.from('sales').select('*, apps(name)').eq('ambassador_id', me.id).order('created_at', { ascending: false }),
     sb.from('notifications').select('*').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(20),
     sb.from('apps').select('*').eq('active', true),
-    sb.from('client_requests').select('*, apps(name, price, currency)').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(40)
+    sb.from('client_requests').select('*, apps(name, price, currency)').eq('ambassador_id', me.id).order('created_at', { ascending: false }).limit(40),
+    sb.from('debts').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('payments').select('*').eq('person_id', me.id).order('created_at', { ascending: false }),
+    sb.from('targets').select('*').gte('end_date', addDays(todayK(), -29)),
+    sb.from('daily_progress').select('*').gte('day', addDays(todayK(), -29))
   ]);
-  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [] };
+  D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [], debts: debts.data || [], pays: pays.data || [], targets: tgs.data || [], prog: prg.data || [] };
+  D.team = me.is_chief ? await loadTeamGoals() : null;
 }
 function subAmb() {
   chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
