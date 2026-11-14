@@ -584,7 +584,7 @@ async function mgrActive(id, flag) {
 
 /* ---------- Compte MANAGER ---------- */
 async function loadMgr() {
-  const [team, sales, led, mled, apps, un, nt] = await Promise.all([
+  const [team, sales, led, mled, apps, un, nt, debts, pays] = await Promise.all([
     sb.from('profiles').select('*').eq('role', 'ambassador').order('created_at'),
     sb.from('sales').select('*, apps(name), profiles(full_name, referral_code)').order('created_at', { ascending: false }),
     sb.from('points_ledger').select('*'),
