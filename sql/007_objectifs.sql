@@ -5,7 +5,7 @@
 -- Chaque jour repart à zéro ; l'historique est conservé (comparaison des jours dans l'application).
 -- La « journée » suit l'heure de Kinshasa (Africa/Kinshasa).
 
-create or replace function public.app_today() returns date language sql stable as $$
+create or replace function public.app_today() returns date language sql stable set search_path = public, pg_catalog as $$
   select (now() at time zone 'Africa/Kinshasa')::date $$;
 grant execute on function public.app_today() to authenticated;
 
