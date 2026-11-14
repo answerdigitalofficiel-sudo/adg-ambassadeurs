@@ -388,7 +388,7 @@ async function loadAdmin() {
   ]);
   const gT = await loadTeamGoals();
   const all = ppl.data || [];
-  D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [] };
+  D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [], debts: debts.data || [], pays: pays.data || [], team: gT };
 }
 function subAdmin() {
   const reload = async () => { await loadAdmin(); if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) renderAdmin(); };
