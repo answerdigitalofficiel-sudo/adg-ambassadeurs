@@ -294,6 +294,7 @@ function renderAmb() {
   let body = '';
   if (tab === 'home') body = `
     <div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(totalUsd) : total}</b><div style="margin-top:6px">${usdBtn}</div></div>
+    ${(D.pays || []).length ? `<div class="kpi"><small>Déjà payé</small><b>${usd(sum(D.pays, 'net_usd'))}</b></div>` : ''}
     <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
     <div class="kpi"><small>En attente</small><b>${pend}</b></div>
     <div class="kpi"><small>Ce mois vs dernier</small><b>${sm(cur)}</b> ${trend(sm(cur), sm(prev))}</div></div>
