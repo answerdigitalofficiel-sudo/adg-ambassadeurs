@@ -298,6 +298,7 @@ function renderAmb() {
     <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
     <div class="kpi"><small>En attente</small><b>${pend}</b></div>
     <div class="kpi"><small>Ce mois vs dernier</small><b>${sm(cur)}</b> ${trend(sm(cur), sm(prev))}</div></div>
+    <div style="margin-top:12px">${debtWarn(D.debts)}${activeTg(D.targets || [], 'day') ? '' : '<div class="card" style="border-color:var(--wa)"><h2>🎯 Objectif du jour non fixé</h2><p class="mu" style="margin:0 0 8px">Indiquez combien de personnes vous allez atteindre aujourd\'hui.</p><button class="p" onclick="tab=\'goals\';renderAmb()">Fixer mon objectif</button></div>'}</div>
     <div class="card" id="codeCard" style="margin-top:12px"><h2>Mon code ambassadeur${me.is_chief ? ' · 👑 en chef' : ''}</h2><b style="font-size:22px;letter-spacing:1px">${esc(me.referral_code)}</b>
     <p class="mu" style="margin:6px 0">Donnez ce code à vos clients : ils vous choisissent dans l'application achetée, puis vous remplissez leur formulaire dans « Demandes ».</p>
     <button class="s" onclick="navigator.clipboard.writeText('${esc(me.referral_code)}');toast('Code copié')">Copier le code</button></div>
