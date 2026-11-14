@@ -739,6 +739,62 @@ async function setTgt(kind) {
 }
 async function addReach(n) { const { error } = await sb.rpc('add_reached', { p_delta: n }); if (error) return alert(error.message); await loadAmb(); renderAmb(); }
 
+/* ---------- Admin : paie, dettes, archive ---------- */
+function payPeople() {
+  const people = D.mgrs.map(m => ({ p: m, role: 'manager' })).concat(D.ambs.filter(a => a.stage === 'active').map(a => ({ p: a, role: 'ambassador' })));
+  return people.map(({ p, role }) => {
+    const L = unpaid(role === 'manager' ? D.mled.filter(l => l.manager_id === p.id) : D.led.filter(l => l.ambassador_id === p.id));
+    const pts = sum(L, 'points'), gross = r2(sum(L, 'usd')), debt = r2(D.debts.filter(d => d.person_id === p.id && d.status === 'open').reduce((a, d) => a + debtLeft(d), 0)), ded = Math.min(gross, debt);
+    return { p, role, pts, gross, debt, ded, net: r2(gross - ded) };
+  });
+}
+function payTabHtml() {
+  const all = payPeople(), un = a => esc((D.univ.find(u => u.id === a.university_id) || {}).name || 'Sans université');
+  const list = (F.pf === 'all' ? all : all.filter(x => x.gross > 0 || x.pts > 0 || x.debt > 0)).sort((a, b) => b.net - a.net || b.debt - a.debt);
+  const names = [...new Set(D.pays.map(x => x.person_name))].sort(), arch = D.pays.filter(x => !F.pp || x.person_name === F.pp);
+  const openD = D.debts.filter(d => d.status === 'open'), nm = id => ((D.ambs.concat(D.mgrs)).find(x => x.id === id) || {}).full_name || '—';
+  return `<div class="grid"><div class="kpi"><small>Net à payer</small><b>${usd(all.reduce((a, x) => a + x.net, 0))}</b></div><div class="kpi"><small>Dettes ouvertes</small><b class="down">${usd(openD.reduce((a, d) => a + debtLeft(d), 0))}</b></div><div class="kpi"><small>Déjà payé (archive)</small><b>${usd(sum(D.pays, 'net_usd'))}</b></div></div>
+  <div class="sec">À payer</div><div class="card"><select onchange="F.pf=this.value;renderAdmin()"><option value="">Seulement ceux à payer / avec dette</option><option value="all" ${F.pf === 'all' ? 'selected' : ''}>Tous les ambassadeurs et managers</option></select>
+  ${list.map(x => `<div class="row" style="align-items:flex-start"><div><b>${esc(x.p.full_name)}</b> <small>${x.role === 'manager' ? 'Manager' : 'Ambassadeur'} · ${un(x.p)}</small><br><small>${esc(x.p.momo_network || '')} ${esc(x.p.momo_number || '') || '<span class="down">numéro mobile money non renseigné</span>'}</small><br>
+    <small>Gains non payés : <b>${x.pts} pts · ${usd(x.gross)}</b>${x.debt > 0 ? ` · Dettes : <b class="down">${usd(x.debt)}</b> (déduit : ${usd(x.ded)})` : ''}</small><br><b>Net à payer : ${usd(x.net)}</b>
+    <div class="acts">${x.pts > 0 || x.gross > 0 ? `<button class="ok" onclick="payModal('${x.p.id}')">💰 Marquer payé</button>` : ''}<button class="s" onclick="debtModal('${x.p.id}')">➕ Dette</button></div></div></div>`).join('') || '<p class="mu">Personne à payer pour le moment : tous les compteurs sont à zéro.</p>'}</div>
+  <div class="sec">Dettes ouvertes (${openD.length})</div><div class="card">${openD.map(d => `<div class="row" style="align-items:flex-start"><div><b>${esc(nm(d.person_id))}</b> · <b class="down">${usd(debtLeft(d))}</b> <small class="mu">sur ${usd(d.amount_usd)}</small><br><small>${esc(d.reason || 'Dette')} · ${fmtD(d.created_at)}</small><div class="acts"><button class="s" onclick="repayDebt('${d.id}',${debtLeft(d)})">Remboursement reçu</button><button class="ko" onclick="cancelDebt('${d.id}')">Annuler</button></div></div></div>`).join('') || '<p class="mu">Aucune dette ouverte.</p>'}</div>
+  <div class="sec">Archive des paiements (définitive)</div><div class="card"><select onchange="F.pp=this.value;renderAdmin()"><option value="">Toutes les personnes</option>${names.map(n => `<option ${F.pp === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+  <p class="mu" style="margin:4px 0"><small>Aucune ligne ne peut être modifiée ni supprimée.${F.pp ? ' Total net payé à ' + esc(F.pp) + ' : <b>' + usd(sum(arch, 'net_usd')) + '</b>' : ''}</small></p>${arch.length ? payRows(arch, true) : '<p class="mu">Aucun paiement enregistré.</p>'}</div>`;
+}
+function openModal(html) { closeModal(); const m = document.createElement('div'); m.className = 'modal'; m.id = 'km2'; m.innerHTML = '<div>' + html + '</div>'; document.body.appendChild(m); }
+function payModal(id) {
+  const x = payPeople().find(y => y.p.id === id); if (!x) return;
+  let avail = x.gross; const dl = D.debts.filter(d => d.person_id === id && d.status === 'open').sort((a, b) => a.created_at < b.created_at ? -1 : 1).map(d => { const t = r2(Math.min(avail, debtLeft(d))); avail = r2(avail - t); return { d, t }; }).filter(z => z.t > 0);
+  openModal(`<h2>💰 Payer ${esc(x.p.full_name)}</h2><p class="mu">${x.role === 'manager' ? 'Manager' : 'Ambassadeur'} · ${esc(x.p.momo_network || '')} ${esc(x.p.momo_number || 'numéro non renseigné')}</p>
+    <div class="box"><small>Gains non payés</small><b>${x.pts} pts · ${usd(x.gross)}</b></div>
+    ${dl.length ? `<div class="box"><small>Dettes déduites automatiquement</small>${dl.map(z => `<b class="down">−${usd(z.t)}</b> <small>${esc(z.d.reason || 'Dette')}${debtLeft(z.d) > z.t ? ' (reste ' + usd(r2(debtLeft(z.d) - z.t)) + ')' : ' (soldée)'}</small><br>`).join('')}</div>` : ''}
+    <div class="box"><small>Montant à payer maintenant</small><b style="font-size:26px">${usd(x.net)}</b></div>
+    <span class="lb">Moyen de paiement</span><select id="pyM"><option>Mobile money</option><option>Cash</option><option>Autre</option></select>
+    <span class="lb">Référence / note (optionnel)</span><input id="pyR" maxlength="120" placeholder="N° de transaction…">
+    <p class="mu"><small>⚠️ Action définitive : le paiement est archivé sans possibilité de modification et le compteur repart à zéro.</small></p>
+    <button class="p" onclick="doPay('${id}',${x.gross})">✔ Confirmer : j'ai payé ${usd(x.net)}</button><button class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Annuler</button>`);
+}
+async function doPay(id, expected) {
+  const { error } = await sb.rpc('admin_pay', { p_user: id, p_method: $('#pyM').value, p_reference: $('#pyR').value.trim(), p_expected: expected });
+  if (error) return alert(error.message);
+  closeModal(); toast('💰 Paiement archivé — compteur remis à zéro'); await refresh();
+}
+function debtModal(id) {
+  const a = D.ambs.concat(D.mgrs).find(x => x.id === id); if (!a) return;
+  openModal(`<h2>➕ Dette de ${esc(a.full_name)}</h2><form onsubmit="doDebt(event,'${id}')"><span class="lb">Montant de la dette ($)</span><input id="dbA" type="number" step="0.01" min="0.01" required><span class="lb">Motif</span><input id="dbR" maxlength="300" placeholder="Ex. avance, matériel…" required>
+    <p class="mu"><small>Elle sera visible par la personne et déduite automatiquement de son prochain paiement.</small></p><button class="p">Enregistrer la dette</button><button type="button" class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Annuler</button></form>`);
+}
+async function doDebt(e, id) {
+  e.preventDefault(); const { error } = await sb.rpc('admin_add_debt', { p_user: id, p_amount: parseFloat($('#dbA').value), p_reason: $('#dbR').value.trim() });
+  if (error) return alert(error.message); closeModal(); toast('Dette enregistrée'); await refresh();
+}
+async function repayDebt(id, left) {
+  const v = prompt('Montant remboursé par la personne ($) — maximum ' + usd(left), left); if (v === null) return;
+  const { error } = await sb.rpc('admin_repay_debt', { p_id: id, p_amount: parseFloat(String(v).replace(',', '.')) }); if (error) return alert(error.message); toast('Remboursement enregistré'); await refresh();
+}
+async function cancelDebt(id) { if (!confirm('Annuler cette dette ? Le reste dû sera effacé.')) return; const { error } = await sb.rpc('admin_cancel_debt', { p_id: id }); if (error) return alert(error.message); toast('Dette annulée'); await refresh(); }
+
 /* ---------- Admin : universités, managers ---------- */
 async function addUniv(e) { e.preventDefault(); const { error } = await sb.from('universities').insert({ name: $('#un1').value.trim() }); if (error) return alert(error.message); toast('Université ajoutée'); await refresh(); }
 async function toggleUniv(id, active) { await sb.from('universities').update({ active }).eq('id', id); await refresh(); }
