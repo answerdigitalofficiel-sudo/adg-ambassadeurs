@@ -478,7 +478,7 @@ function renderAdmin() {
     <div class="card"><h2>Ajouter un numéro</h2><form onsubmit="addNum(event)"><select id="nn"><option>Airtel Money</option><option>Orange Money</option><option>M-Pesa</option><option>Africell Money</option><option>Autre</option></select><input id="nm" type="tel" placeholder="Numéro" required><input id="nl" placeholder="Nom du titulaire (optionnel)"><button class="p">Ajouter</button></form></div>`;
   }
   $('#app').innerHTML = shell('Admin — Ambassadeurs', body,
-    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
+    `<nav>${[['home', '📊 Stats'], ['sales', `🧾 Ventes${pend ? `<span class="bd">${pend}</span>` : ''}`], ['ambs', `👥 Équipe${toDo ? `<span class="bd">${toDo}</span>` : ''}`], ['univ', '🏫 Univ.'], ['pay', '💰 Paie'], ['goals', '🎯 Obj.'], ['add', '➕ Client'], ['apps', '⚙️ Réglages']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="tab='${k}';renderAdmin()">${l}</button>`).join('')}</nav>`);
   if (tab === 'home') {
     drawChart('c1', { type: 'bar', data: { labels: ms.map(label), datasets: [
       { label: 'Via ambassadeurs', data: ms.map(m => val.filter(s => s.ambassador_id && mk(s.validated_at || s.created_at) === m).length), backgroundColor: '#4ade80' },
