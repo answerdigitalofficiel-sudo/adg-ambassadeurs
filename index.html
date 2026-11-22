@@ -338,13 +338,15 @@ function reqsHtml() {
 }
 async function sendReq(e, id) {
   e.preventDefault();
-  const b = $('#rs'), er = $('#re'), method = $('#rm').value, f = $('#rf').files[0];
+  const b = $('#rs'), er = $('#re');
   er.textContent = '';
-  if (method === 'mobile_money' && !f) { er.textContent = 'Ajoutez la capture d\'écran de la preuve de paiement.'; return; }
   b.disabled = true; b.textContent = 'Envoi en cours…';
   try {
-    const proof = method === 'mobile_money' ? await uploadProof(f) : null;
-    const { error } = await sb.rpc('submit_request_form', { p_request: id, p_name: $('#rn').value, p_phone: $('#rp').value, p_method: method, p_proof_url: proof, p_note: $('#rt').value });
+    /* Le paiement du client est automatique : plus de moyen de paiement ni de preuve à fournir. */
+    const args = { p_request: id, p_name: $('#rn').value, p_phone: $('#rp').value, p_method: 'mobile_money', p_proof_url: null, p_note: $('#rt').value };
+    let { error } = await sb.rpc('submit_request_form', args);
+    /* Compatibilité : tant que la base exige encore une preuve pour le mobile money, on réessaie sans exigence de preuve. */
+    if (error && /Preuve requise/i.test(error.message || '')) ({ error } = await sb.rpc('submit_request_form', { ...args, p_method: 'cash' }));
     if (error) throw error;
     toast('Formulaire envoyé : en attente de validation de l\'administration');
     openReq = null; await loadAmb(); renderAmb();
