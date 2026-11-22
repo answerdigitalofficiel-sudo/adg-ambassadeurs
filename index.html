@@ -701,7 +701,7 @@ const activeTg = (targets, kind) => { const t = todayK(); return targets.find(x 
 const tgCell = (targets, prog, kind) => { const g = activeTg(targets, kind); return g ? periodReached(prog, g) + ' / ' + g.target : '<span class="mu">—</span>'; };
 
 /* Vue équipe (manager, ambassadeur en chef, administration) */
-function teamGoalsHtml(T, univs) {
+function teamGoalsHtml(T, univs, adm) {
   const t = todayK(), mem = T.members;
   if (!mem.length) return '<div class="card"><p class="mu">Aucun ambassadeur actif à suivre pour le moment.</p></div>';
   const un = m => esc(((univs || []).find(u => u.id === m.university_id) || {}).name || '');
