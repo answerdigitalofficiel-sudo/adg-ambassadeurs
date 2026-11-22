@@ -608,6 +608,7 @@ async function loadMgr() {
   ]);
   const gT = await loadTeamGoals();
   D = { debts: debts.data || [], pays: pays.data || [], team: gT, notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
+  const mi = await sb.from('manager_instructions').select('*').eq('manager_id', me.id).order('day', { ascending: false }).limit(7); D.instr = mi.data || [];
 }
 function subMgr() {
   const soft = async () => { await loadMgr(); if (!typing()) renderMgr(); };
