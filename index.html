@@ -279,6 +279,8 @@ async function loadAmb() {
   ]);
   D = { led: led.data || [], sales: sales.data || [], notifs: notifs.data || [], apps: apps.data || [], reqs: reqs.data || [], debts: debts.data || [], pays: pays.data || [], targets: tgs.data || [], prog: prg.data || [] };
   D.team = me.is_chief ? await loadTeamGoals() : null;
+  const lm = await sb.from('leader_messages').select('*').eq('ambassador_id', me.id).order('day', { ascending: false }).limit(14);
+  D.msgs = lm.data || [];
 }
 function subAmb() {
   chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
