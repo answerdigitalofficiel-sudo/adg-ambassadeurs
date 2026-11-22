@@ -755,10 +755,15 @@ function drawMyGoals() {
   const hist = dayRows(D.targets || [], D.prog || [], 14).reverse();
   drawChart('c3', { type: 'bar', data: { labels: hist.map(x => fmtK(x.k)), datasets: [{ label: 'Objectif', data: hist.map(x => x.target), backgroundColor: '#94a3b8' }, { label: 'Atteints', data: hist.map(x => x.reached), backgroundColor: '#4ade80' }] }, options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
-async function setTgt(kind) {
-  const v = parseInt(($('#tg-' + kind) || {}).value, 10); if (!(v >= 1)) return alert('Indiquez un nombre de personnes (minimum 1).');
-  const { error } = await sb.rpc('set_target', { p_kind: kind, p_target: v }); if (error) return alert(error.message);
-  toast('🎯 Objectif enregistré'); await loadAmb(); renderAmb();
+/* Calcul automatique du target du jour (une fois par jour, côté serveur) */
+let goalsDay = '';
+async function ensureGoals() { const k = todayK(); if (goalsDay === k) return; try { const { error } = await sb.rpc('ensure_daily_goals'); if (!error) goalsDay = k; } catch (e) { } }
+
+/* Consignes du jour du manager */
+function instrHtml() {
+  const t = todayK(), x = (D.instr || []).find(i => i.day === t) || (D.instr || [])[0];
+  if (!x) return '';
+  return `<div class="card"><h2>📋 ${esc(x.title)}</h2><p style="margin:0 0 6px;white-space:pre-line">${esc(x.body)}</p><small class="mu">${x.day === t ? 'Aujourd\'hui' : fmtK(x.day)} · envoyées automatiquement</small></div>`;
 }
 async function addReach(n) { const { error } = await sb.rpc('add_reached', { p_delta: n }); if (error) return alert(error.message); await loadAmb(); renderAmb(); }
 
