@@ -392,6 +392,8 @@ async function loadAdmin() {
   const gT = await loadTeamGoals();
   const all = ppl.data || [];
   D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [], debts: debts.data || [], pays: pays.data || [], team: gT };
+  const [gs, gp, mi] = await Promise.all([sb.from('goal_settings').select('*').eq('id', 1).maybeSingle(), sb.from('goal_prefs').select('*'), sb.from('manager_instructions').select('*').eq('day', todayK())]);
+  D.gset = gs.data || null; D.gprefs = gp.data || []; D.instrAll = mi.data || [];
 }
 function subAdmin() {
   const reload = async () => { await loadAdmin(); if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) renderAdmin(); };
