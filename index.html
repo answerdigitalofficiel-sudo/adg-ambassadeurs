@@ -765,7 +765,39 @@ function instrHtml() {
   if (!x) return '';
   return `<div class="card"><h2>📋 ${esc(x.title)}</h2><p style="margin:0 0 6px;white-space:pre-line">${esc(x.body)}</p><small class="mu">${x.day === t ? 'Aujourd\'hui' : fmtK(x.day)} · envoyées automatiquement</small></div>`;
 }
-async function addReach(n) { const { error } = await sb.rpc('add_reached', { p_delta: n }); if (error) return alert(error.message); await loadAmb(); renderAmb(); }
+
+/* Interventions manuelles de l'administration */
+async function gcall(fn, args, ok) { const { error } = await sb.rpc(fn, args); if (error) return alert(error.message); toast(ok); await loadAdmin(); renderAdmin(); }
+const gname = id => (((D.team || {}).members || []).find(m => m.id === id) || {}).full_name || 'cet ambassadeur';
+function editGoal(id, cur) {
+  const name = gname(id);
+  const v = parseInt(prompt('Target de ventes du jour pour ' + name + ' :', cur || ''), 10); if (!(v >= 1)) return;
+  const note = prompt('Message d\'accompagnement (facultatif) :', '') || '';
+  gcall('admin_set_goal', { p_amb: id, p_target: v, p_note: note }, '🎯 Target fixé');
+}
+function resetGoal(id) { if (confirm('Rendre la main au calcul automatique pour aujourd\'hui ?')) gcall('admin_reset_goal', { p_amb: id }, 'Calcul automatique rétabli'); }
+function pinGoal(id, cur) {
+  const name = gname(id);
+  const r = prompt('Target FIGÉ chaque jour pour ' + name + ' (laissez vide pour revenir à l\'automatique) :', cur || ''); if (r === null) return;
+  const v = r.trim() === '' ? null : parseInt(r, 10); if (v !== null && !(v >= 1)) return;
+  gcall('admin_set_goal_pref', { p_amb: id, p_fixed: v, p_auto: true }, v ? '📌 Target figé' : 'Automatique rétabli');
+}
+function msgTo(id) { const name = gname(id); const t = prompt('Message pour ' + name + ' (reçu en notification) :', ''); if (t && t.trim()) gcall('admin_send_message', { p_user: id, p_text: t }, '💬 Message envoyé'); }
+function saveGoalSettings() {
+  gcall('admin_set_goal_settings', { p_auto: $('#gs-a').checked, p_messages: $('#gs-m').checked, p_default: +$('#gs-d').value, p_min: +$('#gs-n').value, p_max: +$('#gs-x').value }, 'Réglages enregistrés');
+}
+function runGoals() { if (confirm('Recalculer maintenant les targets, messages et consignes d\'aujourd\'hui ? (Les targets fixés par vous sont conservés.)')) gcall('admin_run_goals', {}, 'Calcul terminé'); }
+function adminGoalsHtml() {
+  const g = D.gset || { auto_enabled: true, messages_enabled: true, default_target: 3, min_target: 1, max_target: 50 };
+  const mn = id => ((D.mgrs || []).find(m => m.id === id) || {}).full_name || '—';
+  return `<div class="card"><h2>⚙️ Targets automatiques</h2><p class="mu" style="margin:0 0 8px"><small>Chaque jour, le système donne à chaque ambassadeur un target de ventes d'après ses résultats de la veille et des 7 derniers jours, lui envoie un message de leader, et envoie des consignes à chaque manager. Rien à faire de votre côté ; vous pouvez corriger à la main ci-dessous.${g.last_run ? ' Dernier calcul : ' + fmtK(g.last_run) + '.' : ''}</small></p>
+    <label style="display:block;margin:4px 0"><input id="gs-a" type="checkbox" ${g.auto_enabled ? 'checked' : ''} style="width:auto"> Calcul automatique des targets</label>
+    <label style="display:block;margin:4px 0"><input id="gs-m" type="checkbox" ${g.messages_enabled ? 'checked' : ''} style="width:auto"> Messages de leader et consignes aux managers</label>
+    <div class="grid"><div><span class="lb">Target de départ</span><input id="gs-d" type="number" min="1" value="${g.default_target}"></div><div><span class="lb">Minimum</span><input id="gs-n" type="number" min="1" value="${g.min_target}"></div><div><span class="lb">Maximum</span><input id="gs-x" type="number" min="1" value="${g.max_target}"></div></div>
+    <div class="acts"><button class="ok" onclick="saveGoalSettings()">Enregistrer</button><button class="s" onclick="runGoals()">🔄 Recalculer maintenant</button></div></div>
+    ${(D.instrAll || []).length ? `<div class="card"><h2>📋 Consignes envoyées aux managers aujourd'hui (${D.instrAll.length})</h2>${D.instrAll.map(x => `<div class="row" style="flex-direction:column;align-items:stretch"><b>${esc(mn(x.manager_id))}</b><span style="white-space:pre-line"><small>${esc(x.body)}</small></span></div>`).join('')}</div>` : ''}
+    ${teamGoalsHtml(D.team, D.univ, true)}`;
+}
 
 /* ---------- Admin : paie, dettes, archive ---------- */
 function payPeople() {
