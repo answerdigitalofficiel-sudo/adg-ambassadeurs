@@ -684,6 +684,7 @@ function payRows(pays, showWho) {
 const payArchiveHtml = pays => `<div class="card"><h2>🧾 Archive de mes paiements</h2><p class="mu" style="margin:0 0 6px"><small>Archive définitive : elle ne peut être ni modifiée ni supprimée.</small></p>${(pays || []).length ? payRows(pays) : '<p class="mu">Aucun paiement pour le moment.</p>'}</div>`;
 
 async function loadTeamGoals() {
+  await ensureGoals();
   const from = addDays(todayK(), -29);
   const [m, t, p] = await Promise.all([sb.rpc('team_members'), sb.rpc('team_targets', { p_from: from }), sb.rpc('team_progress', { p_from: from })]);
   return { members: m.data || [], targets: t.data || [], prog: p.data || [] };
