@@ -729,20 +729,12 @@ function drawTeamGoals(T) {
 /* Objectifs de l'ambassadeur (lui-même) */
 function goalsHtml() {
   const tg = D.targets || [], pr = D.prog || [], t = todayK(), day = activeTg(tg, 'day'), today = dayRows(tg, pr, 1)[0];
-  const setForm = (kind, label) => `<div class="card"><h2>🎯 Objectif ${kindTxt[kind]}</h2><p class="mu" style="margin:0 0 6px">${label}</p><div style="display:flex;gap:6px"><input id="tg-${kind}" type="number" min="1" inputmode="numeric" placeholder="Nombre de personnes" style="margin:0"><button class="ok" onclick="setTgt('${kind}')">Valider</button></div></div>`;
+  const msg = (D.msgs || []).find(m => m.day === t) || (D.msgs || [])[0];
   let h = '';
-  if (!day) h += `<div class="card" style="border-color:var(--wa)"><h2>🎯 Fixez votre objectif du jour</h2><p class="mu" style="margin:0 0 6px">Combien de personnes allez-vous atteindre aujourd'hui (${fmtK(t)}) ? Votre manager et l'administration le voient. Il repart à zéro chaque jour.</p><div style="display:flex;gap:6px"><input id="tg-day" type="number" min="1" inputmode="numeric" placeholder="Nombre de personnes" style="margin:0"><button class="ok" onclick="setTgt('day')">Valider</button></div></div>`;
-  else h += `<div class="card"><h2>🎯 Aujourd'hui — ${fmtK(t)}</h2><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:28px">${today.reached} / ${day.target}</b><b class="${pct(today.reached, day.target) >= 100 ? 'up' : ''}">${pct(today.reached, day.target)}%</b></div>${bar(pct(today.reached, day.target))}
-    <p class="mu" style="margin:0 0 6px"><small>Personnes atteintes aujourd'hui : ajoutez-les au fur et à mesure.</small></p>
-    <div class="acts"><button class="ok" onclick="addReach(1)">+1</button><button class="ok" onclick="addReach(5)">+5</button><button class="ok" onclick="addReach(10)">+10</button><button class="s" onclick="addReach(-1)">−1</button></div>
-    <div style="display:flex;gap:6px;margin-top:10px"><input id="tg-day" type="number" min="1" inputmode="numeric" value="${day.target}" style="margin:0"><button class="s" onclick="setTgt('day')">Modifier l'objectif</button></div></div>`;
-  ['3days', 'week'].forEach(kind => {
-    const g = activeTg(tg, kind);
-    if (!g) { h += setForm(kind, kind === '3days' ? 'Un objectif pour les 3 prochains jours (aujourd\'hui compris).' : 'Un objectif pour les 7 prochains jours (aujourd\'hui compris).'); return; }
-    const r = periodReached(pr, g), left = Math.round((new Date(g.end_date + 'T12:00:00Z') - new Date(t + 'T12:00:00Z')) / 86400000);
-    h += `<div class="card"><h2>🎯 Objectif ${kindTxt[kind]}</h2><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:24px">${r} / ${g.target}</b><b>${pct(r, g.target)}%</b></div>${bar(pct(r, g.target))}<small class="mu">Du ${fmtK(g.start_date)} au ${fmtK(g.end_date)} · ${left > 0 ? left + ' jour(s) restant(s)' : 'dernier jour'}</small>
-      <div style="display:flex;gap:6px;margin-top:8px"><input id="tg-${kind}" type="number" min="1" inputmode="numeric" value="${g.target}" style="margin:0"><button class="s" onclick="setTgt('${kind}')">Modifier</button></div></div>`;
-  });
+  if (msg) h += `<div class="card"><h2>💬 Message de votre leader</h2><p style="margin:0 0 6px;white-space:pre-line">${esc(msg.message)}</p><small class="mu">${msg.day === t ? 'Aujourd\'hui' : fmtK(msg.day)}</small></div>`;
+  if (!day) h += `<div class="card"><h2>🎯 Target du jour</h2><p class="mu" style="margin:0">Votre target du jour est en préparation : il apparaît ici à l'ouverture de la journée.</p></div>`;
+  else h += `<div class="card"><h2>🎯 Aujourd'hui — ${fmtK(t)}</h2><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:28px">${today.reached} / ${day.target} <small>vente(s)</small></b><b class="${pct(today.reached, day.target) >= 100 ? 'up' : ''}">${pct(today.reached, day.target)}%</b></div>${bar(pct(today.reached, day.target))}
+    <p class="mu" style="margin:0"><small>${day.source === 'admin' ? '✍️ Target fixé par l\'administration' : '🤖 Target calculé automatiquement d\'après vos résultats'}${day.note ? ' · ' + esc(day.note) : ''}. Vos ventes validées sont comptées automatiquement.</small></p></div>`;
   const hist = dayRows(tg, pr, 14);
   const done = hist.filter(x => x.target), best = done.reduce((a, x) => x.reached > a ? x.reached : a, 0), avg = done.length ? Math.round(done.reduce((a, x) => a + x.reached, 0) / done.length * 10) / 10 : 0, ok = done.filter(x => x.reached >= x.target).length;
   h += `<div class="card"><h2>📈 Mes progrès (14 jours)</h2><div class="grid" style="margin-bottom:10px"><div class="kpi"><small>Moyenne / jour</small><b>${avg}</b></div><div class="kpi"><small>Meilleur jour</small><b>${best}</b></div><div class="kpi"><small>Objectifs tenus</small><b>${ok}/${done.length}</b></div></div><canvas id="c3" height="170"></canvas></div>
