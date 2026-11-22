@@ -330,8 +330,6 @@ function reqsHtml() {
     <div class="box"><small>Ambassadeur (non modifiable)</small><b>${esc(me.full_name)}</b> · <b>${esc(me.referral_code)}</b></div>
     <div class="box"><small>Compte du client</small><b>${esc(r.client_email)}</b></div>
     <input id="rn" placeholder="Nom complet du client" required><input id="rp" type="tel" placeholder="Numéro de téléphone du client" required>
-    <span class="lb">Moyen de paiement</span><select id="rm" onchange="$('#rproof').style.display=this.value==='cash'?'none':''"><option value="mobile_money">Mobile money</option><option value="cash">Cash</option></select>
-    <div id="rproof"><span class="lb">Capture d'écran de la preuve de paiement (obligatoire pour le mobile money)</span><input id="rf" type="file" accept="image/*"></div>
     <textarea id="rt" rows="2" placeholder="Note (optionnel)"></textarea><p class="err" id="re"></p>
     <button class="p" id="rs">Envoyer à l'administration</button><button type="button" class="s" style="margin-top:8px;width:100%" onclick="openReq=null;renderAmb()">Annuler</button></form>`;
   return `<div class="card"><h2>Clients à enregistrer (${open.length})</h2>${open.length ? open.map(r => `<div class="row" style="flex-direction:column;align-items:stretch"><div><b>${esc(r.client_email)}</b><br><small>${esc(r.apps?.name || '')} · ${fmtD(r.created_at)}</small></div>
