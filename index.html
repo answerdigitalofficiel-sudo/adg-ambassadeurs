@@ -15,6 +15,8 @@
 <title>ADG Ambassadeurs — Answer Digital</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="features.js"></script>
 <style>
 :root{--bg:#f1f5f9;--card:#fff;--tx:#0b1f3c;--mu:#64748b;--nv:#0b1f3c;--ac:#a3e635;--cy:#22d3ee;--on:#0b1f3c;--lk:#0e7490;--bd:#e2e8f0;--ok:#16a34a;--wa:#d97706;--ko:#dc2626}
 @media(prefers-color-scheme:dark){:root{--bg:#07142a;--card:#0e2145;--tx:#e5eaf3;--mu:#93a4c3;--on:#a3e635;--lk:#22d3ee;--bd:#1b3260}}
@@ -75,6 +77,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 4px;t
 @keyframes pulse{50%{outline-color:var(--cy)}}
 .sec{margin:14px 0 6px;font-size:14px;color:var(--mu);text-transform:uppercase;letter-spacing:1px}
 label.chk{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px}label.chk input{width:auto;margin:0}
+.qr{display:flex;justify-content:center;margin:6px 0}.qr img{width:min(240px,70vw);height:auto;image-rendering:pixelated;border-radius:8px;background:#fff;margin:0}
 </style>
 </head>
 <body>
@@ -141,7 +144,7 @@ const CELLS = [[2,0,'#a3e635'],[3,0,'#bef264'],[4,0,'#bef264'],[1,1,'#4ade80'],[
 const LOGO = (s = 32, anim = false) => `<svg class="${anim ? 'an' : ''}" width="${s}" height="${s}" viewBox="0 0 325 325" aria-label="Answer Digital">${CELLS.map(([c, r, f], i) => `<rect x="${c * 67}" y="${r * 67}" width="58" height="58" rx="13" fill="${f}" ${anim ? `style="animation-delay:${i * 0.06}s"` : ''}/>`).join('')}</svg>`;
 const sig = () => `<div class="sig">${LOGO(18)}<span><b>Answer Digital</b> · Technology. Innovation. Solutions.</span></div>`;
 $('#splash').innerHTML = `${LOGO(110, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">ADG Ambassadeurs</div>`;
-const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div>${avatarUrl ? `<img class="av" src="${esc(avatarUrl)}" alt="">` : ''}${me && me.role === 'ambassador' && me.stage === 'active' ? '<button onclick="startTour()" title="Guide">?</button>' : ''}<button id="inst" onclick="installApp()" style="display:${deferredInstall || !(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
+const shell = (title, body, navHtml = '') => `<header><div class="brand">${LOGO(34)}<div><b>ADG Ambassadeurs</b><small>by Answer Digital</small></div></div><div>${avatarUrl ? `<img class="av" src="${esc(avatarUrl)}" alt="">` : ''}${me && me.role === 'ambassador' && me.stage === 'active' ? '<button onclick="startTour()" title="Guide">?</button>' : ''}<button onclick="openShare()" title="Partager l'application" aria-label="Partager l'application">📲</button><button id="inst" onclick="installApp()" style="display:${deferredInstall || !(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? '' : 'none'}">Installer</button><button onclick="logout()">Déconnexion</button></div></header><main><p class="hello">${title}</p>${body}${sig()}</main>${navHtml}`;
 
 /* ---------- AUTH ---------- */
 function showAuth(err = '') {
@@ -153,7 +156,7 @@ function showAuth(err = '') {
   ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' + (univs.length ? '<select id="un" required><option value="">— Votre université —</option>' + univs.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('') + '</select>' : '<p class="mu" style="font-size:13px">Chargement des universités… (si la liste reste vide, vérifiez votre connexion)</p>') : ''}
   <input id="em" type="email" placeholder="Email" required>${pwField('pw', 'Mot de passe (6+ caractères)')}
   <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form>
-  ${authMode === 'signup' ? '<p class="mu" style="font-size:13px;margin:10px 0 0">Après l\'inscription, votre compte est examiné par l\'administration avant l\'accès à votre espace.</p>' : ''}</div>${sig()}</div>`;
+  ${authMode === 'signup' ? '<p class="mu" style="font-size:13px;margin:10px 0 0">Après l\'inscription, votre compte est examiné par le manager de votre université, ou à défaut par l\'administration avant l\'accès à votre espace.</p>' : ''}</div><div style="text-align:center;margin:10px 0 0"><button class="s" onclick="openShare()">📲 Partager l'application (QR code)</button></div>${sig()}</div>`;
 }
 async function doAuth(e) {
   e.preventDefault();
@@ -213,13 +216,13 @@ function subSelf() {
 function renderStage() {
   const s = me.stage, n = esc(firstName(me.full_name));
   let body = '';
-  if (s === 'pending') body = `<div class="card"><h2>⏳ Inscription reçue</h2><p>Merci ${n} ! L'administration examine votre inscription <b>(étape 1 sur 2)</b>. Vous serez prévenu automatiquement : cet écran s'actualisera tout seul.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
+  if (s === 'pending') body = `<div class="card"><h2>⏳ Inscription reçue</h2><p>Merci ${n} ! Le manager de votre université (ou à défaut l'administration) examine votre inscription <b>(étape 1 sur 2)</b>. Vous serez prévenu automatiquement : cet écran s'actualisera tout seul.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
   if (s === 'kyc') body = `<div class="card"><h2>✅ Étape 1 validée — complétez votre dossier</h2><p class="mu">Ces informations restent privées et servent uniquement à vérifier votre identité et à vous verser vos gains.</p>
     <form onsubmit="doKyc(event)"><span class="lb">Photo de profil (visage visible)</span><input id="kf1" type="file" accept="image/*" required>
     <span class="lb">Capture ou photo de votre pièce d'identité (bien visible)</span><input id="kf2" type="file" accept="image/*" required>
     <span class="lb">Réseau mobile money</span><select id="kn"><option>Airtel Money</option><option>Orange Money</option><option>M-Pesa</option><option>Africell Money</option><option>Autre</option></select>
     <input id="km" type="tel" placeholder="Numéro mobile money (ex: 0999...)" required><p class="err" id="ke"></p><button class="p" id="kb">Envoyer mon dossier</button></form></div>`;
-  if (s === 'review') body = `<div class="card"><h2>🔎 Dossier en cours de vérification</h2><p>Merci ${n}. L'administration vérifie votre dossier <b>(étape 2 sur 2)</b>. Dès validation, votre espace ambassadeur s'ouvrira automatiquement.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
+  if (s === 'review') body = `<div class="card"><h2>🔎 Dossier en cours de vérification</h2><p>Merci ${n}. Le manager de votre université (ou à défaut l'administration) vérifie votre dossier <b>(étape 2 sur 2)</b>. Dès validation, votre espace ambassadeur s'ouvrira automatiquement.</p><button class="s" onclick="boot()">Vérifier maintenant</button></div>`;
   $('#app').innerHTML = shell('Bienvenue ' + n, body);
 }
 async function doKyc(e) {
@@ -281,6 +284,7 @@ async function loadAmb() {
   D.team = me.is_chief ? await loadTeamGoals() : null;
   const lm = await sb.from('leader_messages').select('*').eq('ambassador_id', me.id).order('day', { ascending: false }).limit(14);
   D.msgs = lm.data || [];
+  const hv = await sb.from('manager_handovers').select('*').eq('incoming_id', me.id).in('status', ['pending', 'handed']); D.hand = hv.data || [];
 }
 function subAmb() {
   chan = sb.channel('amb-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `ambassador_id=eq.${me.id}` },
@@ -296,7 +300,7 @@ function renderAmb() {
   const usdBtn = `<button class="s" id="usdBtn" onclick="showUsd=!showUsd;renderAmb()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   let body = '';
   if (tab === 'home') body = `
-    <div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(totalUsd) : total}</b><div style="margin-top:6px">${usdBtn}</div></div>
+    ${handoverAmbHtml()}<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(totalUsd) : total}</b><div style="margin-top:6px">${usdBtn}</div></div>
     ${(D.pays || []).length ? `<div class="kpi"><small>Déjà payé</small><b>${usd(sum(D.pays, 'net_usd'))}</b></div>` : ''}
     <div class="kpi"><small>Clients validés</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div>
     <div class="kpi"><small>En attente</small><b>${pend}</b></div>
@@ -394,6 +398,7 @@ async function loadAdmin() {
   D = { sales: sales.data || [], ambs: all.filter(p => p.role === 'ambassador'), mgrs: all.filter(p => p.role === 'manager'), led: led.data || [], apps: apps.data || [], nums: nums.data || [], univ: uni.data || [], mled: mled.data || [], debts: debts.data || [], pays: pays.data || [], team: gT };
   const [gs, gp, mi] = await Promise.all([sb.from('goal_settings').select('*').eq('id', 1).maybeSingle(), sb.from('goal_prefs').select('*'), sb.from('manager_instructions').select('*').eq('day', todayK())]);
   D.gset = gs.data || null; D.gprefs = gp.data || []; D.instrAll = mi.data || [];
+  const hv = await sb.from('manager_handovers').select('*').in('status', ['pending', 'handed']); D.hand = hv.data || [];
 }
 function subAdmin() {
   const reload = async () => { await loadAdmin(); if (!document.activeElement || !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) renderAdmin(); };
@@ -415,7 +420,7 @@ function renderAdmin() {
   const ms = months();
   const pend = D.sales.filter(s => s.status === 'pending').length;
   const val = D.sales.filter(s => s.status === 'validated');
-  const toDo = D.ambs.filter(a => a.stage === 'pending' || a.stage === 'review').length;
+  const toDo = D.ambs.filter(a => (a.stage === 'pending' || a.stage === 'review') && !hasMgr(a)).length;
   const actifs = D.ambs.filter(a => a.stage === 'active');
   let body = '';
   const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderAdmin()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
@@ -440,13 +445,13 @@ function renderAdmin() {
     ${s.status !== 'validated' ? `<div class="acts"><button class="ok" onclick="setStatus('${s.id}','validated')">✔ Valider</button>${s.status === 'pending' ? `<button class="ko" onclick="setStatus('${s.id}','rejected')">✖ Rejeter</button>` : ''}</div>` : ''}</div></div>`).join('') || '<p class="mu">Aucune vente.</p>'}</div>`;
   }
   if (tab === 'ambs') {
-    const p1 = D.ambs.filter(a => a.stage === 'pending'), p2 = D.ambs.filter(a => a.stage === 'review'), p15 = D.ambs.filter(a => a.stage === 'kyc');
+    const p1 = D.ambs.filter(a => a.stage === 'pending' && !hasMgr(a)), p2 = D.ambs.filter(a => a.stage === 'review' && !hasMgr(a)), p15 = D.ambs.filter(a => a.stage === 'kyc');
     const del = a => `<button class="ko" onclick="delAmb('${a.id}','${esc(a.full_name).replace(/'/g, '')}')">🗑</button>`;
     const un = a => esc((D.univ.find(u => u.id === a.university_id) || {}).name || 'Sans université');
     body = broadcastCard() + `${p1.length ? `<div class="sec">Étape 1 — Inscriptions à valider (${p1.length})</div><div class="card">${p1.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · <a href="${wa(a.phone)}" target="_blank">${esc(a.phone)}</a> · ${fmtD(a.created_at)}</small></div><div class="acts"><button class="ok" onclick="setStage('${a.id}','kyc')">✔ Valider</button>${del(a)}</div></div>`).join('')}</div>` : ''}
     ${p2.length ? `<div class="sec">Étape 2 — Dossiers à vérifier (${p2.length})</div><div class="card">${p2.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · ${esc(a.momo_network || '')} ${esc(a.momo_number || '')}</small></div><div class="acts"><button class="s" onclick="viewKyc('${a.id}')">Voir le dossier</button>${del(a)}</div></div>`).join('')}</div>` : ''}
     ${p15.length ? `<div class="sec">Dossier en cours de remplissage (${p15.length})</div><div class="card">${p15.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b><br><small>${un(a)} · étape 1 validée</small></div>${del(a)}</div>`).join('')}</div>` : ''}
-    <div class="sec">Managers (${D.mgrs.length})</div><div class="card">${D.mgrs.map(m => { const g = D.mled.filter(l => l.manager_id === m.id); return `<div class="row"><div><b>${esc(m.full_name)}</b> ${m.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br><small>${un(m)} · ${showUsd ? usd(sum(g, 'usd')) : sum(g, 'points') + ' pts'}</small></div><div class="acts"><button class="s" onclick="mgrActiveAny('${m.id}',${!m.active})">${m.active ? 'Suspendre' : 'Réactiver'}</button><button class="s" onclick="unsetMgr('${m.id}')">Retirer</button>${del(m)}</div></div>`; }).join('') || '<p class="mu">Aucun manager. Une personne s\'inscrit normalement, puis vous la nommez manager dans l\'onglet 🏫 Univ.</p>'}</div>
+    <div class="sec">Managers (${D.mgrs.length})</div><div class="card"><p class="mu" style="margin:0 0 8px"><small>Chaque manager valide lui-même les nouveaux ambassadeurs de son université. Vous voyez ici leur nombre et leur identité enregistrée ; vous ne validez que dans une université sans manager.</small></p>${D.mgrs.map(m => { const g = D.mled.filter(l => l.manager_id === m.id); return `<div class="row"><div><b>${esc(m.full_name)}</b> ${m.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br><small>${un(m)} · 👥 ${nbTeam(m)} · ${showUsd ? usd(sum(g, 'usd')) : sum(g, 'points') + ' pts'}</small></div><div class="acts"><button class="s" onclick="showTeamIdentity('${m.id}')">👥 Équipe</button><button class="s" onclick="mgrActiveAny('${m.id}',${!m.active})">${m.active ? 'Suspendre' : 'Réactiver'}</button><button class="s" onclick="unsetMgr('${m.id}')">Retirer</button>${del(m)}</div></div>`; }).join('') || '<p class="mu">Aucun manager. Une personne s\'inscrit normalement, puis vous la nommez manager dans l\'onglet 🏫 Univ.</p>'}</div>
     <div class="sec">Ambassadeurs actifs (${actifs.length})</div><div class="card"><div style="margin-bottom:8px">${usdBtn}</div><div style="overflow-x:auto"><table><tr><th>Nom</th><th>Univ.</th><th>Validés</th><th>Att.</th><th>${showUsd ? 'Gains' : 'Points'}</th><th>Mois</th><th></th></tr>
     ${actifs.map(a => { const s = ambStats(a); return `<tr><td><a href="${wa(a.phone)}" target="_blank">${esc(a.full_name)}</a> ${a.is_chief ? '👑' : ''}${a.active ? '' : ' <small class="down">(suspendu)</small>'}<br><small>${esc(a.referral_code)}${a.momo_number ? ' · ' + esc(a.momo_network || '') + ' ' + esc(a.momo_number) : ''}</small></td><td><small>${un(a)}</small></td><td>${s.total}</td><td>${s.pending}</td><td><b>${showUsd ? usd(s.usd) : s.points}</b></td><td>${s.cur} ${trend(s.cur, s.prev)}</td><td style="white-space:nowrap"><button class="s" onclick="mgrActiveAny('${a.id}',${!a.active})">${a.active ? 'Suspendre' : 'Réact.'}</button> ${del(a)}</td></tr>`; }).join('') || '<tr><td colspan="7" class="mu">Aucun ambassadeur actif.</td></tr>'}</table></div></div>`;
   }
@@ -458,8 +463,8 @@ function renderAdmin() {
         const sv = D.sales.filter(s => s.status === 'validated' && tIds.includes(s.ambassador_id)).length, g = mgr ? D.mled.filter(l => l.manager_id === mgr.id) : [];
         const cands = D.ambs.filter(a => a.stage === 'active' && (a.university_id === u.id || !a.university_id));
         return `<div class="card"><h2>🏫 ${esc(u.name)} ${u.active ? '' : '<small class="down">(masquée)</small>'}</h2>
-          <p style="margin:4px 0"><b>Manager :</b> ${mgr ? esc(mgr.full_name) + ` <button class="s" onclick="unsetMgr('${mgr.id}')">Retirer</button>` : '<span class="mu">Aucun</span>'}</p>
-          ${mgr ? '' : `<div style="display:flex;gap:6px"><select id="mp-${u.id}" style="margin:0"><option value="">— Choisir la personne —</option>${cands.map(a => `<option value="${a.id}">${esc(a.full_name)}</option>`).join('')}</select><button class="ok" onclick="setMgr('${u.id}')">Nommer</button></div>`}
+          ${univMgrHtml(u, mgr)}
+          
           <p style="margin:8px 0 0"><b>Équipe :</b> ${team.length} · <b>Ventes validées :</b> ${sv} · <b>Gains du manager :</b> ${showUsd ? usd(sum(g, 'usd')) : sum(g, 'points') + ' pts'}</p>
           ${team.map(a => `<div class="row"><div><b>${esc(a.full_name)}</b> ${a.is_chief ? '👑' : ''} ${a.active ? '' : '<span class="tag t-rejected">Suspendu</span>'}<br><small>${stageTxt[a.stage]}</small></div><div class="acts">${a.stage === 'active' ? `<button class="s" onclick="mgrChief('${a.id}',${!a.is_chief})">${a.is_chief ? 'Retirer chef' : '👑 Chef'}</button>` : ''}</div></div>`).join('')}
           <div class="acts"><button class="s" onclick="toggleUniv('${u.id}',${!u.active})">${u.active ? 'Masquer' : 'Afficher'}</button>${usdBtn}</div></div>`;
@@ -518,13 +523,13 @@ async function delAmb(id, name) {
 function closeModal() { const m = $('#km2'); if (m) m.remove(); }
 async function viewKyc(id) {
   const a = D.ambs.find(x => x.id === id); if (!a) return;
-  const [p, d] = await Promise.all([signed(a.avatar_path), signed(a.id_doc_path)]);
+  const [p, d] = await Promise.all([signed(a.avatar_path), signed(a.id_doc_path)]); const ro = a.stage === 'active' || (me.role === 'admin' && hasMgr(a));
   const m = document.createElement('div'); m.className = 'modal'; m.id = 'km2';
   m.innerHTML = `<div><h2>${esc(a.full_name)}</h2><p class="mu">${esc(a.phone)} · ${esc(a.momo_network || '')} ${esc(a.momo_number || '')}</p>
     <span class="lb">Photo de profil</span>${p ? `<img src="${esc(p)}" alt="">` : '<p class="mu">Introuvable</p>'}
     <span class="lb">Pièce d'identité</span>${d ? `<img src="${esc(d)}" alt="">` : '<p class="mu">Introuvable</p>'}
-    <button class="p" onclick="setStage('${a.id}','active')">✔ Valider (étape 2) — activer le compte</button>
-    <button class="s" style="width:100%;margin-top:8px" onclick="setStage('${a.id}','kyc')">↩ Demander un nouveau dossier</button>
+    ${ro ? '' : `<button class="p" onclick="setStage('${a.id}','active')">✔ Valider (étape 2) — activer le compte</button>`}
+    ${ro ? '' : `<button class="s" style="width:100%;margin-top:8px" onclick="setStage('${a.id}','kyc')">↩ Demander un nouveau dossier</button>`}
     <button class="s" style="width:100%;margin-top:8px" onclick="closeModal()">Fermer</button></div>`;
   document.body.appendChild(m);
 }
@@ -609,6 +614,7 @@ async function loadMgr() {
   const gT = await loadTeamGoals();
   D = { debts: debts.data || [], pays: pays.data || [], team: gT, notifs: nt.data || [], ambs: team.data || [], sales: sales.data || [], led: led.data || [], mled: mled.data || [], apps: apps.data || [], univ: (un.data || []).find(u => u.id === me.university_id) };
   const mi = await sb.from('manager_instructions').select('*').eq('manager_id', me.id).order('day', { ascending: false }).limit(7); D.instr = mi.data || [];
+  const hm = await sb.from('manager_handovers').select('*').or('outgoing_id.eq.' + me.id + ',incoming_id.eq.' + me.id).order('created_at', { ascending: false }).limit(5); D.hand = hm.data || [];
 }
 function subMgr() {
   const soft = async () => { await loadMgr(); if (!typing()) renderMgr(); };
@@ -629,7 +635,7 @@ function renderMgr() {
   const usdBtn = `<button class="s" onclick="showUsd=!showUsd;renderMgr()">${showUsd ? 'Voir en points' : '💵 Convertir en $'}</button>`;
   const ms = months(), msum = m => sum(D.mled.filter(l => mk(l.created_at) === m), 'points');
   let body = '';
-  if (tab === 'home') body = `${debtWarn(D.debts)}${instrHtml()}<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(mu) : mp}</b><div style="margin-top:6px">${usdBtn}</div></div>
+  if (tab === 'home') body = `${handoverMgrHtml()}${debtWarn(D.debts)}${instrHtml()}<div class="grid"><div class="kpi"><small>Mes points</small><b>${showUsd ? usd(mu) : mp}</b><div style="margin-top:6px">${usdBtn}</div></div>
     <div class="kpi"><small>Aujourd'hui</small><b>${showUsd ? usd(sum(todayL, 'usd')) : sum(todayL, 'points')}</b></div>
     <div class="kpi"><small>Ambassadeurs actifs</small><b>${active.length}</b></div>
     <div class="kpi"><small>Ventes validées</small><b>${D.sales.filter(s => s.status === 'validated').length}</b></div></div>
