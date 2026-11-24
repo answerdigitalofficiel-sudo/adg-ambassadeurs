@@ -1,14 +1,14 @@
 /* ADG Ambassadeurs — messagerie flottante (texte, image, audio).
-   Fichier indépendant : s'il échoue, le reste de l'application n'est pas affecté. Nécessite sql/011 et sql/012.
+   Fichier indépendant : s'il échoue, le reste de l'application n'est pas affecté. Nécessite sql/011, sql/012 et sql/013.
    Règles (appliquées côté serveur) : ambassadeur ↔ son équipe et son manager uniquement ; manager ↔ son équipe, les autres managers et l'administration ;
    l'administration → managers et ambassadeurs (les ambassadeurs ne peuvent pas lui répondre).
-   Stockage : seuls les TEXTES sont enregistrés sur le serveur. Les photos et audios ne sont jamais stockés : ils sont relayés en direct
-   (Supabase Realtime, canaux privés) puis gardés dans le téléphone (IndexedDB) de l'expéditeur et du destinataire.
+   Stockage : les TEXTES sont enregistrés sur le serveur. Les photos et audios (audio : 4 minutes maximum) ne sont gardés que dans les téléphones :
+   ils transitent par le serveur seulement le temps d'être livrés (livrés à la connexion du destinataire), puis le fichier est effacé du serveur.
    Aucun numéro de téléphone n'est exposé : on voit le nom enregistré et le poste. */
 (function () {
-  const S = { key: '', dir: [], by: {}, msgs: [], local: [], lun: {}, reads: {}, univs: {}, chan: null, chIn: null, chTeam: null, poll: null, open: false, view: 'list', cur: null, q: '', rec: null };
+  const S = { key: '', dir: [], by: {}, msgs: [], local: [], lun: {}, reads: {}, univs: {}, chan: null, poll: null, open: false, view: 'list', cur: null, q: '', rec: null };
   const urls = {};
-  let busy = false, dbp = null;
+  let busy = false, dbp = null, pulling = false;
   const $q = s => document.querySelector(s);
   const E = s => (typeof esc === 'function' ? esc(s) : String(s == null ? '' : s));
   const ME = () => { try { return me; } catch (e) { return null; } };
@@ -25,8 +25,6 @@
   const adapt = r => ({ id: r.id, sender_id: r.sender_id, kind: r.kind, body: '', created_at: new Date(r.ts).toISOString(), key: r.key, local: true, dur: r.dur });
   const all = () => S.msgs.concat(S.local.map(adapt));
   const preview = m => { const u = ME(), pre = u && m.sender_id === u.id ? 'Vous : ' : ''; return m.kind === 'image' ? pre + '📷 Photo' : m.kind === 'audio' ? pre + '🎤 Message vocal' : pre + String(m.body).slice(0, 60); };
-  const toDataUrl = b => new Promise((res, rej) => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = () => rej(f.error); f.readAsDataURL(b); });
-  const fromDataUrl = (d, mime) => { const bin = atob(d.slice(d.indexOf(',') + 1)), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: mime }); };
   const ICON = `<svg viewBox='0 0 24 24' width='28' height='28' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5A8.5 8.5 0 1 1 21 11.5z'/><path d='M8.5 10.5h7M8.5 14h4'/></svg>`;
   const CSS = `#chFab{position:fixed;right:14px;bottom:66px;width:56px;height:56px;border-radius:50%;border:0;background:var(--ac);color:var(--nv);box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:8;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 #chBadge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:10px;background:var(--ko);color:#fff;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px;border:2px solid var(--bg)}
@@ -70,7 +68,7 @@
     dbp = new Promise((res, rej) => { try { const rq = indexedDB.open('adg-chat-media', 1); rq.onupgradeneeded = () => { rq.result.createObjectStore('media', { keyPath: 'id' }); }; rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); } catch (e) { rej(e); } });
     return dbp;
   }
-  async function dbPut(rec) { try { const d = await idb(); await new Promise((res, rej) => { const t = d.transaction('media', 'readwrite'); t.objectStore('media').put(rec); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch (e) {} }
+  async function dbPut(rec) { try { const d = await idb(); await new Promise((res, rej) => { const t = d.transaction('media', 'readwrite'); t.objectStore('media').put(rec); t.oncomplete = res; t.onerror = () => rej(t.error); }); return true; } catch (e) { return false; } }
   async function dbLoad(owner) { try { const d = await idb(); return await new Promise((res, rej) => { const r = d.transaction('media').objectStore('media').getAll(); r.onsuccess = () => res((r.result || []).filter(x => x.owner === owner)); r.onerror = () => rej(r.error); }); } catch (e) { return []; } }
   function localUrl(id) { if (urls[id]) return urls[id]; const r = S.local.find(x => x.id === id); if (!r) return ''; urls[id] = URL.createObjectURL(r.blob); return urls[id]; }
 
@@ -116,7 +114,7 @@
     if (b) { b.textContent = n > 99 ? '99+' : String(n); b.style.display = n ? 'flex' : 'none'; }
   }
   async function markRead(k) { S.lun[k] = 0; badge(); const r = await SB().rpc('chat_mark_read', { p_key: k }); if (!r.error && r.data) { S.reads[k] = r.data; badge(); } }
-  async function refresh() { const n = S.msgs.length; await Promise.all([loadMsgs(), loadDir()]); badge(); if (S.open && S.msgs.length !== n) render(); }
+  async function refresh() { const n = S.msgs.length; await Promise.all([loadMsgs(), loadDir()]); await pull(); badge(); if (S.open && S.msgs.length !== n) render(); }
   function render() { if (S.view === 'thread') renderThread(); else renderList(); }
 
   /* ---------- Liste des conversations ---------- */
@@ -198,7 +196,7 @@
     c.innerHTML = `<label class='chi2' for='chImg' title='Photo'>📷</label><input type='file' id='chImg' accept='image/*' style='display:none'><input id='chIn' placeholder='Écrire un message…' maxlength='2000' autocomplete='off'><button type='button' class='chi2' data-act='rec' title='Message vocal'>🎤</button><button type='button' class='chbtn chok' data-act='send'>➤</button>`;
   }
 
-  /* ---------- Envoi : texte = serveur ; photo/audio = relais direct puis téléphone ---------- */
+  /* ---------- Envoi : texte = serveur ; photo/audio = transit puis téléphone ---------- */
   async function sendText() {
     const inp = $q('#chIn'), c = S.cur; if (!inp || !c || busy) return;
     const t = inp.value.trim(); if (!t) return;
@@ -211,30 +209,24 @@
     } catch (e) { inp.value = t; note(e); }
     busy = false;
   }
-  function subscribeCh(ch) {
-    return new Promise((res, rej) => {
-      let done = false;
-      const tm = setTimeout(() => { if (!done) { done = true; rej(new Error(`Connexion impossible.`)); } }, 8000);
-      ch.subscribe(st => {
-        if (done) return;
-        if (st === 'SUBSCRIBED') { done = true; clearTimeout(tm); res(ch); }
-        else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') { done = true; clearTimeout(tm); rej(new Error(`Envoi non autorisé ou connexion impossible.`)); }
-      });
-    });
+  async function upload(blob, ext, ctype) {
+    const name = ME().id + '/' + uid() + '.' + ext;
+    const r = await SB().storage.from('chat').upload(name, blob, { contentType: ctype });
+    if (r.error) throw new Error(`Envoi du fichier impossible. Réessayez.`);
+    return name;
   }
   async function sendMedia(kind, blob, dur) {
     const c = S.cur, u = ME(); if (!c || !c.canWrite) return;
-    const data = await toDataUrl(blob);
-    if (data.length > 1200000) throw new Error(`Fichier trop lourd pour l'envoi.`);
-    const payload = { id: uid(), kind, sender_id: u.id, name: u.full_name, role: u.role, ts: Date.now(), dur: dur || 0, mime: blob.type, data, univ: c.type === 'g' ? c.id : null };
-    let ch = null, own = false;
-    if (c.type === 'g' && S.chTeam) ch = S.chTeam;
-    else { ch = SB().channel('inbox:' + c.id, { config: { private: true, broadcast: { ack: true } } }); own = true; await subscribeCh(ch).catch(e => { SB().removeChannel(ch); throw e; }); }
-    let r; try { r = await ch.send({ type: 'broadcast', event: 'media', payload }); } finally { if (own) SB().removeChannel(ch); }
-    if (r !== 'ok') throw new Error(`Envoi impossible. Réessayez.`);
-    const rec = { id: payload.id, owner: u.id, key: c.key, sender_id: u.id, kind, dur: payload.dur, ts: payload.ts, mime: blob.type, blob };
+    if (blob.size > 7000000) throw new Error(`Fichier trop lourd pour l'envoi.`);
+    const bt = String(blob.type || ''), mp4 = bt.indexOf('mp4') >= 0, ogg = bt.indexOf('ogg') >= 0;
+    const ext = kind === 'image' ? 'jpg' : mp4 ? 'm4a' : ogg ? 'ogg' : 'webm';
+    const ctype = kind === 'image' ? 'image/jpeg' : mp4 ? 'audio/mp4' : ogg ? 'audio/ogg' : 'audio/webm';
+    const path = await upload(blob, ext, ctype);
+    const r = await SB().rpc('chat_send_media', { p_to: c.type === 'u' ? c.id : null, p_univ: c.type === 'g' ? c.id : null, p_kind: kind, p_path: path, p_dur: dur || null });
+    if (r.error) throw r.error;
+    const rec = { id: r.data, owner: u.id, key: c.key, sender_id: u.id, kind, dur: dur || 0, ts: Date.now(), mime: ctype, blob };
     S.local.push(rec); dbPut(rec); appendMsg(adapt(rec));
-    say(`Envoyé : le destinataire le reçoit s'il est connecté.`);
+    say(`Envoyé : livré dès que le destinataire se connecte.`);
   }
   async function sendImage(f) {
     if (busy) return; busy = true;
@@ -253,7 +245,7 @@
     mr.ondataavailable = ev => { if (ev.data && ev.data.size) r.chunks.push(ev.data); };
     mr.onstop = () => finishRec(r);
     S.rec = r; mr.start(); renderComposer();
-    r.tm = setInterval(() => { const s = Math.floor((Date.now() - r.t0) / 1000), el = $q('#chT'); if (el) el.textContent = Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); if (s >= 60) stopRec(false); }, 500);
+    r.tm = setInterval(() => { const s = Math.floor((Date.now() - r.t0) / 1000), el = $q('#chT'); if (el) el.textContent = Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); if (s >= 240) stopRec(false); }, 500);
   }
   function stopRec(cancel) {
     const r = S.rec; if (!r) return;
@@ -279,7 +271,7 @@
     z.addEventListener('click', () => z.remove()); document.body.appendChild(z);
   }
 
-  /* ---------- Réception en direct, ouverture, cycle de vie ---------- */
+  /* ---------- Réception : textes en direct ; photos et audios récupérés à la connexion puis effacés du serveur ---------- */
   function onNew(x) {
     const u = ME(); if (!u || S.msgs.some(y => y.id === x.id)) return;
     S.msgs.push(x);
@@ -289,46 +281,68 @@
     if (!mine) { const w = S.by[x.sender_id]; say(`💬 ${w ? w.full_name : 'Nouveau message'} : ${preview(x)}`); }
     badge(); if (S.open && S.view === 'list') renderList();
   }
-  function onMedia(p) {
-    const u = ME(); if (!u || !p || !p.id || !p.data || p.sender_id === u.id || String(p.data).length > 1600000) return;
-    if (S.local.some(x => x.id === p.id)) return;
-    if (p.univ && p.univ !== u.university_id) return;
-    const kind = p.kind === 'audio' ? 'audio' : 'image', key = p.univ ? 'g:' + p.univ : 'u:' + p.sender_id;
-    const mime = kind === 'audio' ? (String(p.mime).indexOf('audio/') === 0 ? p.mime : 'audio/webm') : 'image/jpeg';
-    let rec; try { rec = { id: String(p.id), owner: u.id, key, sender_id: p.sender_id, kind, dur: Number(p.dur) || 0, ts: Number(p.ts) || Date.now(), mime, blob: fromDataUrl(p.data, mime) }; } catch (e) { return; }
-    S.local.push(rec); dbPut(rec);
-    if (!S.by[p.sender_id]) {
-      if (p.role === 'admin') { const en = { id: p.sender_id, full_name: p.name || 'Administration', role: 'admin', is_chief: false, university_name: '', can_write: false }; S.by[en.id] = en; S.dir.push(en); }
+  function announce(m, rec, quiet) {
+    if (!S.by[m.sender_id]) {
+      if (m.sender_role === 'admin') { const en = { id: m.sender_id, full_name: m.sender_name || 'Administration', role: 'admin', is_chief: false, university_name: '', can_write: false }; S.by[en.id] = en; S.dir.push(en); }
       else loadDir();
     }
-    if (S.open && S.view === 'thread' && S.cur && S.cur.key === key) { appendMsg(adapt(rec)); return; }
-    S.lun[key] = (S.lun[key] || 0) + 1;
-    const w = S.by[p.sender_id]; say(`💬 ${w ? w.full_name : 'Nouveau message'} : ${preview(adapt(rec))}`);
+    const ad = adapt(rec);
+    if (S.open && S.view === 'thread' && S.cur && S.cur.key === rec.key) { appendMsg(ad); return; }
+    S.lun[rec.key] = (S.lun[rec.key] || 0) + 1;
+    if (!quiet) { const w = S.by[m.sender_id]; say(`💬 ${w ? w.full_name : m.sender_name} : ${preview(ad)}`); }
     badge(); if (S.open && S.view === 'list') renderList();
+  }
+  async function pull() {
+    const u = ME(); if (!u || pulling) return;
+    pulling = true;
+    try {
+      const r = await SB().rpc('chat_media_pending'); if (r.error) return;
+      const list = r.data || [], quiet = list.length > 3;
+      for (const m of list) {
+        if (!S.local.some(x => x.id === m.id)) {
+          const d = await SB().storage.from('chat').download(m.path);
+          if (d.error || !d.data) continue;
+          const mime = m.kind === 'audio' ? (String(d.data.type).indexOf('audio/') === 0 ? d.data.type : 'audio/webm') : 'image/jpeg';
+          const rec = { id: m.id, owner: u.id, key: m.univ_id ? 'g:' + m.univ_id : 'u:' + m.sender_id, sender_id: m.sender_id, kind: m.kind, dur: m.dur || 0, ts: new Date(m.created_at).getTime(), mime, blob: new Blob([d.data], { type: mime }) };
+          if (!(await dbPut(rec))) continue;
+          S.local.push(rec); announce(m, rec, quiet);
+        }
+        const a = await SB().rpc('chat_media_ack', { p_id: m.id });
+        if (!a.error && a.data === true) { const dl = await SB().storage.from('chat').remove([m.path]); if (!dl.error) await SB().rpc('chat_media_purge', { p_id: m.id }); }
+      }
+    } catch (e) {} finally { pulling = false; }
+  }
+  async function janitor() {
+    const u = ME(); if (!u) return;
+    try {
+      const r = await SB().from('chat_media').select('id,path,pending,created_at').eq('sender_id', u.id), old = Date.now() - 14 * 86400000;
+      for (const m of (r.data || [])) {
+        if ((m.pending || []).length === 0 || new Date(m.created_at).getTime() < old) {
+          const d = await SB().storage.from('chat').remove([m.path]);
+          if (!d.error) await SB().rpc('chat_media_purge', { p_id: m.id });
+        }
+      }
+    } catch (e) {}
   }
   function openPanel() { S.open = true; $q('#chPanel').classList.add('on'); showList(); refresh(); }
   function closePanel() { S.open = false; stopRec(true); const p = $q('#chPanel'); if (p) p.classList.remove('on'); }
-  function listen(topic, key) {
-    const ch = SB().channel(topic, { config: { private: true, broadcast: { ack: true } } }).on('broadcast', { event: 'media' }, m => onMedia(m.payload));
-    ch.subscribe();
-    return ch;
-  }
   async function init() {
     mount();
     const u = ME(); if (!u) return;
     await Promise.all([loadDir(), loadUnivs(), loadMsgs(), loadReads(), dbLoad(u.id).then(r => { S.local = r; })]);
     badge(); if (S.open) render();
-    S.chan = SB().channel('chat-' + u.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, p => onNew(p.new)).subscribe();
-    try { const ss = await SB().auth.getSession(); if (ss.data && ss.data.session && SB().realtime && SB().realtime.setAuth) SB().realtime.setAuth(ss.data.session.access_token); } catch (e) {}
-    S.chIn = listen('inbox:' + u.id);
-    if (u.university_id && u.role !== 'admin') S.chTeam = listen('team:' + u.university_id);
+    S.chan = SB().channel('chat-' + u.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, p => onNew(p.new))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_media' }, () => pull())
+      .subscribe();
     S.poll = setInterval(refresh, 45000);
+    await pull(); janitor();
   }
   function teardown() {
-    [S.chan, S.chIn, S.chTeam].forEach(c => { if (c) { try { SB().removeChannel(c); } catch (e) {} } });
+    if (S.chan) { try { SB().removeChannel(S.chan); } catch (e) {} }
     clearInterval(S.poll); unmount();
     Object.keys(urls).forEach(k => { try { URL.revokeObjectURL(urls[k]); } catch (e) {} delete urls[k]; });
-    S.dir = []; S.by = {}; S.msgs = []; S.local = []; S.lun = {}; S.reads = {}; S.chan = null; S.chIn = null; S.chTeam = null; S.poll = null; S.open = false; S.view = 'list'; S.cur = null; S.q = ''; S.rec = null; busy = false;
+    S.dir = []; S.by = {}; S.msgs = []; S.local = []; S.lun = {}; S.reads = {}; S.chan = null; S.poll = null; S.open = false; S.view = 'list'; S.cur = null; S.q = ''; S.rec = null; busy = false; pulling = false;
   }
   function tick() {
     const u = ME(), k = eligible(u) ? [u.id, u.role, u.stage, u.university_id, u.active].join(':') : '';
