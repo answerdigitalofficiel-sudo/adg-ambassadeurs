@@ -181,6 +181,7 @@ async function boot() {
   me = data; tab = 'home'; openReq = null;
   avatarUrl = me.avatar_path ? await signed(me.avatar_path) : '';
   if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); return; }
+  if (adgBanned(me, session.user.email)) return adgBannedScreen();
   if (!me.active) return suspendedScreen();
   if (me.role === 'ambassador' && !me.university_id) return univGate();
   if (me.role === 'manager') { await loadMgr(); renderMgr(); subMgr(); return; }
@@ -561,6 +562,31 @@ const typing = () => document.activeElement && /INPUT|TEXTAREA|SELECT/.test(docu
 const sameDay = d => new Date(d).toDateString() === new Date().toDateString();
 const sum = (l, k) => l.reduce((a, x) => a + (+x[k] || 0), 0);
 const stageTxt = { pending: 'Inscription à valider', kyc: 'Dossier à envoyer', review: 'Dossier à vérifier', active: 'Actif' };
+
+/* ---------- Ambassadeurs inscrits avant le 25/11/2026 : accès réservé à la liste blanche ---------- */
+const ADG_CUTOFF = '2026-11-25T15:30:00Z';
+const ADG_ALLOW = ['Teshuah-Yasha', 'Aurore', 'Gemy mutombo', 'Gedeon Phœnix tshilombo', 'omalokolo hioma francois', 'Havila mpubu mawulu', 'Aline', 'Tracy', 'Precilliah'];
+const adgNorm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/œ/gi, 'oe').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function adgAllowed(p, email) {
+  const nameT = adgNorm(p.full_name).split(' ').filter(Boolean);
+  const mailN = adgNorm(String(email || '').split('@')[0]);
+  const mailT = mailN.split(' ').filter(Boolean), mailC = mailN.replace(/ /g, '');
+  return ADG_ALLOW.some(entry => {
+    const toks = adgNorm(entry).split(' ').filter(Boolean);
+    const need = (toks.length === 2 && entry.indexOf('-') > -1) ? 1 : Math.min(toks.length, 2);
+    const byName = toks.filter(t => nameT.includes(t)).length >= need;
+    const byMail = toks.filter(t => mailT.includes(t) || (toks.length === 1 ? mailC.startsWith(t) : mailC.includes(t))).length >= need;
+    return byName || byMail;
+  });
+}
+function adgBanned(p, email) {
+  return p.role === 'ambassador' && !!p.created_at && new Date(p.created_at) < new Date(ADG_CUTOFF) && !adgAllowed(p, email);
+}
+async function adgBannedScreen() {
+  $('#app').innerHTML = shell('Accès refusé', "<div class='card'><h2>⛔ Accès retiré</h2><p>Votre accès à ADG Ambassadeurs a été retiré. Contactez l'administration d'Answer Digital.</p></div>");
+  try { await sb.auth.signOut(); } catch (e) {}
+  me = null; avatarUrl = '';
+}
 
 function suspendedScreen() {
   $('#app').innerHTML = shell('Compte suspendu', `<div class="card"><h2>⛔ Votre compte est suspendu</h2><p>Contactez votre manager ou l'administration pour plus d'informations.</p></div>`);
