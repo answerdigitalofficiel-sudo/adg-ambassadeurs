@@ -28,20 +28,17 @@
   }
 
   async function intro(info) {
-    const u = await sb.rpc('list_universities');
-    const opts = (u.data || []).map(x => '<option value="' + E(x.id) + '">' + E(x.name) + '</option>').join('');
     $q('#app').innerHTML = wrap('<div class="card"><h2>' + E(info.title) + '</h2>' +
       '<p><b>' + info.count + ' questions</b> · environ ' + Math.ceil(info.seconds / 60) + ' minutes au total.</p>' +
       '<ul style="padding-left:18px;line-height:1.6"><li>Chaque question a <b>son propre chrono</b> : le temps écoulé, la réponse n\'est plus acceptée.</li><li>Pas de retour en arrière. Une seule tentative.</li><li>Ne quittez pas la page : chaque sortie est enregistrée.</li><li>Répondez seul(e), avec vos propres mots.</li></ul>' +
       '<form onsubmit="ADG_RT.start(event)"><input id="rn" placeholder="Nom complet" required minlength="3" autocomplete="name"><input id="rp" type="tel" placeholder="Téléphone (WhatsApp)" required autocomplete="tel"><input id="re" type="email" placeholder="Adresse e-mail" required autocomplete="email">' +
-      '<select id="ru"><option value="">Université où vous souhaitez travailler (optionnel)</option>' + opts + '</select>' +
-      '<p id="rer" class="err"></p><button class="p">Commencer le test</button></form></div>');
+            '<p id="rer" class="err"></p><button class="p">Commencer le test</button></form></div>');
   }
 
   async function start(e) {
     e.preventDefault();
     const b = e.target.querySelector('button.p'); b.disabled = true;
-    const r = await sb.rpc('rt_begin', { p_token: Q, p_name: $q('#rn').value, p_phone: $q('#rp').value, p_email: $q('#re').value, p_univ: $q('#ru').value || null });
+    const r = await sb.rpc('rt_begin', { p_token: Q, p_name: $q('#rn').value, p_phone: $q('#rp').value, p_email: $q('#re').value });
     if (r.error) {
       b.disabled = false;
       const m = r.error.message || '';
@@ -136,7 +133,7 @@
     h += sorted.map(a => {
       const need = st.ans.some(x => x.attempt_id === a.id && x.score == null);
       const dec = a.decision === 'retained' ? tag('Retenu' + (a.decision_role ? ' · ' + (a.decision_role === 'manager' ? 'manager' : 'ambassadeur') : ''), '#16a34a') : a.decision === 'rejected' ? tag('Refusé', '#dc2626') : '';
-      return '<div class="row" style="align-items:flex-start;cursor:pointer" onclick="ADG_RT.open(\'' + a.id + '\')"><div><b>' + E(a.full_name) + '</b><br><small>' + E(a.phone) + ' · ' + E(a.email) + '</small><br><small>' + E(univName(a.university_id) || 'Univ. non précisée') + ' · ' + (a.status === 'finished' ? 'terminé' : 'en cours') + ' · ' + a.leaves + ' sortie(s) de page' + (need ? ' · ✍️ à noter' : '') + '</small></div><div style="text-align:right"><b style="font-size:20px">' + (a.score == null ? '—' : Math.round(a.score) + '%') + '</b><br>' + dec + '</div></div>';
+      return '<div class="row" style="align-items:flex-start;cursor:pointer" onclick="ADG_RT.open(\'' + a.id + '\')"><div><b>' + E(a.full_name) + '</b><br><small>' + E(a.phone) + ' · ' + E(a.email) + '</small><br><small>' + (univName(a.university_id) ? E(univName(a.university_id)) + ' · ' : '') + (a.status === 'finished' ? 'terminé' : 'en cours') + ' · ' + a.leaves + ' sortie(s) de page' + (need ? ' · ✍️ à noter' : '') + '</small></div><div style="text-align:right"><b style="font-size:20px">' + (a.score == null ? '—' : Math.round(a.score) + '%') + '</b><br>' + dec + '</div></div>';
     }).join('') || '<p class="mu">Aucun candidat pour le moment.</p>';
     h += '</div>';
     h += '<div class="card"><h2>Questions</h2>' + qs.map(x => '<div class="row" style="align-items:flex-start"><div style="flex:1"><small class="mu">' + x.position + '. ' + E(x.criterion) + ' · ' + (x.kind === 'choice' ? 'choix' : 'texte') + ' · ' + x.points + ' pts</small><br>' + E(x.prompt) + '</div><div style="min-width:84px;text-align:right"><input type="number" min="10" max="900" value="' + x.seconds + '" style="width:70px" onchange="ADG_RT.secs(\'' + x.id + '\',this.value)"> s<br><button class="ko" onclick="ADG_RT.delQ(\'' + x.id + '\')">🗑</button></div></div>').join('') +
