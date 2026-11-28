@@ -1,0 +1,9 @@
+-- 016 : Tests de recrutement — banque de questions et génération en un clic
+-- Déjà APPLIQUÉE sur Supabase (migration « 016_recrutement_banque_questions_et_generation »). Ne pas relancer 013.
+--
+--  * rt_questions : colonnes active (question servie ou archivée), core (questions d'ouverture conservées), bank_id
+--  * rt_bank : banque de questions par champ (manager / ambassador), rédigées ou à choix
+--  * rt_generate(test) [admin] : archive les questions non "core" et tire une nouvelle série dans la banque
+--    (4 à choix + 7 rédigées, en privilégiant les sujets et les questions les moins utilisés)
+--  * rt_next / rt_info ne servent que les questions actives ; le score ne compte que les questions posées
+--  * Chaque test : 2 questions d'ouverture rédigées (compréhension du rôle) + 11 questions = 13, soit 4 à choix / 9 rédigées
