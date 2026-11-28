@@ -1,0 +1,10 @@
+-- 014 : Tests de recrutement — liens à usage unique + deux tests (manager / ambassadeur)
+-- Déjà APPLIQUÉE sur Supabase (migration « 014_recrutement_liens_uniques_et_questions »). NE PAS relancer 013 après 014 :
+-- 013 recréerait les anciennes fonctions rt_info / rt_begin basées sur un jeton unique de test.
+--
+-- Résumé :
+--  * rt_tests.kind ('manager' | 'ambassador') ; la colonne rt_tests.token est supprimée
+--  * rt_invites : un lien (jeton) par candidat ; used_at est rempli dès que le candidat commence → lien caduc
+--  * rt_info(token) ne répond que pour un lien non utilisé ; rt_begin(token, ...) consomme le lien (verrou for update)
+--  * Banques de questions : Test Manager général (12 questions) et Test Ambassadeur (11 questions),
+--    modifiables dans l'onglet 🧪 Test de l'admin.
