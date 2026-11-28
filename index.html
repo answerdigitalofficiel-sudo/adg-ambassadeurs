@@ -155,12 +155,17 @@ function showAuth(err = '') {
   $('#app').innerHTML = `<div class="auth"><div class="authbrand">${LOGO(84, true)}<div class="w1">ANSWER</div><div class="w2">DIGITAL</div><div class="cyl"></div><div class="w3">Technology. Innovation. Solutions.</div></div><div class="card"><h2 style="text-align:center">ADG Ambassadeurs</h2>
   <div class="tabs"><button class="s" onclick="authMode='login';showAuth()" ${authMode === 'login' ? 'style="border-color:var(--ac)"' : ''}>Connexion</button>
   <button class="s" onclick="authMode='signup';showAuth()" ${authMode === 'signup' ? 'style="border-color:var(--ac)"' : ''}>Inscription</button></div>
-  <form onsubmit="doAuth(event)">
+  <form onsubmit="doAuth(event)" oninput="authSave()" onchange="authSave()">
   ${authMode === 'signup' ? '<input id="fn" placeholder="Nom complet" required><input id="ph" placeholder="Téléphone (ex: +243...)" required>' + (univs.length ? '<select id="un" required><option value="">— Votre université —</option>' + univs.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('') + '</select>' : '<p class="mu" style="font-size:13px">Chargement des universités… (si la liste reste vide, vérifiez votre connexion)</p>') : ''}
   <input id="em" type="email" placeholder="Email" required>${pwField('pw', 'Mot de passe (6+ caractères)')}
   <p class="err">${esc(err)}</p><button class="p">${authMode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button></form>
   ${authMode === 'signup' ? '<p class="mu" style="font-size:13px;margin:10px 0 0">Après l\'inscription, votre compte est examiné par le manager de votre université, ou à défaut par l\'administration avant l\'accès à votre espace.</p>' : ''}</div><div style="text-align:center;margin:10px 0 0"><button class="s" onclick="openShare()">📲 Partager l'application (QR code)</button></div>${sig()}</div>`;
+  authRestore();
 }
+/* Brouillon du formulaire d'inscription : les champs tapés (hors mot de passe) survivent à un rechargement ou à un réaffichage */
+const AUTH_DK = 'adg_auth_draft', AUTH_IDS = ['fn', 'ph', 'un', 'em'];
+function authSave() { try { const o = {}; AUTH_IDS.forEach(i => { const el = document.getElementById(i); if (el) o[i] = el.value; }); const old = JSON.parse(localStorage.getItem(AUTH_DK) || '{}'); localStorage.setItem(AUTH_DK, JSON.stringify(Object.assign(old, o))); } catch (e) { /* ignore */ } }
+function authRestore() { try { const o = JSON.parse(localStorage.getItem(AUTH_DK) || '{}'); AUTH_IDS.forEach(i => { const el = document.getElementById(i); if (el && o[i]) el.value = o[i]; }); } catch (e) { /* ignore */ } }
 async function doAuth(e) {
   e.preventDefault();
   const email = $('#em').value.trim(), password = $('#pw').value;
@@ -183,6 +188,7 @@ async function boot() {
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error || !data) return showAuth('Profil introuvable.');
   me = data; tab = 'home'; openReq = null;
+  try { localStorage.removeItem('adg_auth_draft'); } catch (e) { /* ignore */ }
   avatarUrl = me.avatar_path ? await signed(me.avatar_path) : '';
   if (me.role === 'admin') { await loadAdmin(); renderAdmin(); subAdmin(); return; }
   if (adgBanned(me, session.user.email)) return adgBannedScreen();
