@@ -26,18 +26,21 @@
   }
 
   function intro(info) {
-    $q('#app').innerHTML = wrap(`<div class='card'><h2>${E(info.title)}</h2><p><b>${info.count} questions</b> · environ ${Math.ceil(info.seconds / 60)} minutes au total.</p><ul style='padding-left:18px;line-height:1.6'><li>Ce lien est <b>à usage unique</b> : il devient invalide dès que vous commencez.</li><li>Chaque question a <b>son propre chrono</b> : le temps écoulé, la réponse n'est plus acceptée.</li><li>Pas de retour en arrière. Une seule tentative.</li><li>Ne quittez pas la page : chaque sortie est enregistrée.</li><li>Répondez seul(e), avec vos propres mots.</li></ul><form onsubmit='ADG_RT.start(event)'><input id='rn' placeholder='Nom complet' required minlength='3' autocomplete='name'><input id='rp' type='tel' placeholder='Téléphone (WhatsApp)' required autocomplete='tel'><input id='re' type='email' placeholder='Adresse e-mail' required autocomplete='email'><p id='rer' class='err'></p><button class='p'>Commencer le test</button></form></div>`);
+    $q('#app').innerHTML = wrap(`<div class='card'><h2>${E(info.title)}</h2><p><b>${info.count} questions</b> · environ ${Math.ceil(info.seconds / 60)} minutes au total.</p><ul style='padding-left:18px;line-height:1.6'><li>Ce lien est <b>à usage unique</b> : il devient invalide dès que vous commencez.</li><li>Chaque question a <b>son propre chrono</b> : le temps écoulé, la réponse n'est plus acceptée.</li><li>Pas de retour en arrière. Une seule tentative.</li><li>Ne quittez pas la page : chaque sortie est enregistrée.</li><li>Répondez seul(e), avec vos propres mots.</li></ul><form onsubmit='ADG_RT.start(event)' novalidate><input id='rn' placeholder='Nom complet (nom et prénom) *' required autocomplete='name'><input id='rp' type='tel' inputmode='tel' placeholder='Numéro WhatsApp * (ex. 0812345678)' required autocomplete='tel'><input id='re' type='email' placeholder='Adresse e-mail (facultative si vous avez WhatsApp)' autocomplete='email'><p class='mu'><small>* Obligatoire. Sans e-mail, votre numéro WhatsApp suffit.</small></p><p id='rer' class='err'></p><button class='p'>Commencer le test</button></form></div>`);
   }
 
   async function start(e) {
     e.preventDefault();
+    const nm = $q('#rn').value.trim().split(' ').filter(Boolean).join(' '), ph = $q('#rp').value.replace(/[^0-9+]/g, ''), em = $q('#re').value.trim();
+    const bad = !/^[^ ]{2,} [^ ]{2,}/.test(nm) ? 'Entrez votre nom complet (nom et prénom).' : !/^([+][0-9]{8,15}|00[0-9]{8,15}|243[0-9]{9}|0[0-9]{9}|[0-9]{9})$/.test(ph) ? 'Entrez un numéro WhatsApp valide (ex. 0812345678).' : (em && !/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(em)) ? "Cette adresse e-mail n'est pas valide." : '';
+    if (bad) { $q('#rer').textContent = bad; return; }
     const b = e.target.querySelector('button.p'); b.disabled = true;
     const r = await sb.rpc('rt_begin', { p_token: Q, p_name: $q('#rn').value, p_phone: $q('#rp').value, p_email: $q('#re').value });
     if (r.error) {
       const m = r.error.message || '';
       if (/LIEN_INVALIDE/.test(m)) return invalid();
       b.disabled = false;
-      $q('#rer').textContent = /DEJA_PASSE/.test(m) ? 'Un test a déjà été passé avec ce téléphone ou cet e-mail.' : /COORDONNEES/.test(m) ? 'Vérifiez votre nom, votre téléphone et votre e-mail.' : 'Erreur : ' + m;
+      $q('#rer').textContent = /DEJA_PASSE/.test(m) ? 'Un test a déjà été passé avec ce téléphone ou cet e-mail.' : /NOM_INVALIDE/.test(m) ? 'Entrez votre nom complet (nom et prénom).' : /TELEPHONE_INVALIDE/.test(m) ? 'Entrez un numéro WhatsApp valide (ex. 0812345678).' : /EMAIL_INVALIDE/.test(m) ? "Cette adresse e-mail n'est pas valide." : /COORDONNEES/.test(m) ? 'Vérifiez vos informations.' : 'Erreur : ' + m;
       return;
     }
     localStorage.setItem(KEY, r.data);
@@ -113,6 +116,7 @@
   const linkOf = v => location.origin + location.pathname.replace('index.html', '') + '?test=' + v.token;
   const tag = (txt, c) => `<span style='background:${c};color:#fff;padding:2px 8px;border-radius:99px;font-size:12px'>${txt}</span>`;
   const kindLabel = k => k === 'manager' ? 'manager' : 'ambassadeur';
+  const waLink = (ph, txt) => 'https://wa.me/' + String(ph || '').replace(/[^0-9]/g, '') + (txt ? '?text=' + encodeURIComponent(txt) : '');
 
   function render() {
     if (st.err === 'SQL') return `<div class='card'><h2>🧪 Tests de recrutement</h2><p>La base n'est pas prête : les fichiers SQL de recrutement n'ont pas été appliqués.</p></div>`;
@@ -135,10 +139,10 @@
       const need = st.ans.some(x => x.attempt_id === a.id && x.score == null);
       const dec = a.decision === 'retained' ? tag('Retenu' + (a.decision_role ? ' · ' + kindLabel(a.decision_role) : ''), '#16a34a') : a.decision === 'rejected' ? tag('Refusé', '#dc2626') : '';
       const u = univName(a.university_id);
-      return `<div class='row' style='align-items:flex-start;cursor:pointer' data-id='${a.id}' onclick='ADG_RT.open(this.dataset.id)'><div><b>${E(a.full_name)}</b><br><small>${E(a.phone)} · ${E(a.email)}</small><br><small>${u ? E(u) + ' · ' : ''}${a.status === 'finished' ? 'terminé' : 'en cours'} · ${a.leaves} sortie(s) de page${need ? ' · ✍️ à noter' : ''}</small></div><div style='text-align:right'><b style='font-size:20px'>${a.score == null ? '—' : Math.round(a.score) + '%'}</b><br>${dec}</div></div>`;
+      return `<div class='row' style='align-items:flex-start;cursor:pointer' data-id='${a.id}' onclick='ADG_RT.open(this.dataset.id)'><div><b>${E(a.full_name)}</b><br><small><a href='${waLink(a.phone)}' target='_blank' rel='noopener' onclick='event.stopPropagation()'>💬 ${E(a.phone)}</a>${a.email ? ' · ' + E(a.email) : ''}</small><br><small>${u ? E(u) + ' · ' : ''}${a.status === 'finished' ? 'terminé' : 'en cours'} · ${a.leaves} sortie(s) de page${need ? ' · ✍️ à noter' : ''}</small></div><div style='text-align:right'><b style='font-size:20px'>${a.score == null ? '—' : Math.round(a.score) + '%'}</b><br>${dec}</div></div>`;
     }).join('') || `<p class='mu'>Aucun candidat pour le moment.</p>`;
     h += `</div><div class='card'><h2>Questions</h2>`;
-    h += qs.map((x, i) => `<div class='row' style='align-items:flex-start'><div style='flex:1'><small class='mu'>${i + 1}. ${x.core ? '⭐ ' : ''}${E(x.criterion)} · ${x.kind === 'choice' ? 'choix' : 'texte'} · ${x.points} pts</small><br>${E(x.prompt)}</div><div style='min-width:84px;text-align:right'><input type='number' min='10' max='900' value='${x.seconds}' style='width:70px' data-id='${x.id}' onchange='ADG_RT.secs(this.dataset.id,this.value)'> s<br><button class='ko' data-id='${x.id}' onclick='ADG_RT.delQ(this.dataset.id)'>🗑</button></div></div>`).join('');
+    h += qs.map((x, i) => `<div class='row' style='align-items:flex-start'><div style='flex:1'><small class='mu'>${i + 1}. ${x.core ? '⭐ ' : ''}${E(x.criterion)} · ${x.kind === 'choice' ? 'choix' : 'texte'} · ${x.points} pts</small><br>${E(x.prompt)}${x.kind === 'choice' ? `<br><small class='mu'>✔ ${E((x.options || [])[x.correct] || '')}</small>` : ''}</div><div style='min-width:84px;text-align:right'><input type='number' min='10' max='900' value='${x.seconds}' style='width:70px' data-id='${x.id}' onchange='ADG_RT.secs(this.dataset.id,this.value)'> s<br><button class='ko' data-id='${x.id}' onclick='ADG_RT.delQ(this.dataset.id)'>🗑</button></div></div>`).join('');
     h += `<details style='margin-top:10px'><summary><b>➕ Ajouter une question</b></summary><form onsubmit='ADG_RT.addQ(event)'><input id='qc' placeholder='Critère visé (ex. Leadership)' required><textarea id='qp' placeholder='Question' required></textarea><select id='qk'><option value='choice'>Choix multiple</option><option value='text'>Réponse écrite (notée à la main)</option></select><textarea id='qo' placeholder='Choix : un par ligne (pour le choix multiple)'></textarea><input id='qr' type='number' min='1' placeholder='N° de la bonne réponse (1, 2, 3…)'><input id='qs' type='number' min='10' max='900' value='45' placeholder='Durée en secondes'><input id='qt' type='number' min='1' value='10' placeholder='Points'><label style='display:block;margin:8px 0'><input type='checkbox' id='qb' style='width:auto'> Ajouter aussi à la banque de génération</label><button class='p'>Ajouter</button></form></details></div>`;
     return h;
   }
@@ -159,15 +163,16 @@
       if (q.kind === 'choice') {
         const i = r.answer === '' || r.answer == null ? null : parseInt(r.answer, 10);
         ans = (i == null ? '<i>Pas de réponse</i>' : E((q.options || [])[i] || '?')) + ' ' + (r.score > 0 ? '✅' : '❌');
+        if (!(r.score > 0)) ans += `<div style='margin-top:4px;padding:6px 8px;border-radius:8px;background:rgba(22,163,74,.12)'><small>✔ Bonne réponse : <b>${E((q.options || [])[q.correct] || '—')}</b></small></div>`;
       } else {
         ans = (r.answer ? `<div style='white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:8px'>${E(r.answer)}</div>` : '<i>Pas de réponse</i>') +
-          (r.late ? '' : `<div style='margin-top:6px'>Note : <input type='number' min='0' max='${q.points}' step='0.5' value='${r.score == null ? '' : r.score}' style='width:70px' id='g-${r.id}'> / ${q.points} <button class='s' data-a='${r.id}' data-t='${a.id}' onclick='ADG_RT.gradeBtn(this)'>Noter</button></div>`);
+          (r.late ? '' : `<div style='margin-top:6px'>Note : <input type='number' min='0' max='${q.points}' step='0.5' value='${r.score == null ? '' : r.score}' style='width:70px' id='g-${r.id}'> / ${q.points} <button class='s' data-a='${r.id}' data-t='${a.id}' onclick='ADG_RT.gradeBtn(this)'>Noter</button></div>`) + (q.expected ? `<div style='margin-top:6px;padding:6px 8px;border-radius:8px;background:rgba(37,99,235,.10)'><small>📌 Éléments attendus : ${E(q.expected)}</small></div>` : '');
       }
       const dur = r.late ? 'hors délai' : Math.max(0, Math.round((new Date(r.answered_at) - new Date(r.served_at)) / 1000)) + ' s / ' + q.seconds + ' s';
       return `<div class='row' style='align-items:flex-start'><div style='width:100%'><small class='mu'>${qi + 1}. ${E(q.criterion)} · ${dur}</small><br>${E(q.prompt)}<div style='margin-top:6px'>${ans}</div></div></div>`;
     }).join('');
     const btn = (cls, label, d, r, m) => `<button class='${cls}' data-id='${a.id}' data-d='${d}' data-r='${r}' data-m='${m}' onclick='ADG_RT.decideBtn(this)'>${label}</button>`;
-    const html = `<h2>${E(a.full_name)}</h2><p class='mu'><small>${test ? 'Test ' + kindLabel(test.kind) + ' · ' : ''}${E(a.phone)} · ${E(a.email)}<br>Score : <b>${a.score == null ? '—' : Math.round(a.score) + '%'}</b> · ${a.leaves} sortie(s) de page</small></p>${rows}<span class='lb'>Université d'affectation (managers)</span><select id='rtu'>${uopts}</select><div class='acts' style='flex-wrap:wrap'>${btn('ok', '✅ Retenu + e-mail', 'retained', '', '1')}${btn('ko', '❌ Refusé + e-mail', 'rejected', '', '1')}</div><div class='acts' style='flex-wrap:wrap'>${btn('p', '➕ Manager', 'retained', 'manager', '0')}${btn('p', '➕ Ambassadeur', 'retained', 'ambassador', '0')}</div><p class='mu'><small>Si la personne n'a pas encore de compte, demandez-lui de s'inscrire avec <b>${E(a.email)}</b>, puis recliquez sur Manager / Ambassadeur.</small></p><button class='s' style='width:100%;margin-top:6px' data-id='${a.id}' onclick='ADG_RT.reset(this.dataset.id)'>🗑 Supprimer cette tentative (permet de repasser le test avec un nouveau lien)</button><button class='s' style='width:100%;margin-top:8px' onclick='closeModal()'>Fermer</button>`;
+    const html = `<h2>${E(a.full_name)}</h2><p class='mu'><small>${test ? 'Test ' + kindLabel(test.kind) + ' · ' : ''}${E(a.phone)}${a.email ? ' · ' + E(a.email) : ' · pas d\'e-mail'}<br>Score : <b>${a.score == null ? '—' : Math.round(a.score) + '%'}</b> · ${a.leaves} sortie(s) de page</small></p><a class='p' href='${waLink(a.phone)}' target='_blank' rel='noopener' style='display:block;text-align:center;padding:12px;border-radius:12px;text-decoration:none;margin:6px 0 10px'>💬 Ouvrir WhatsApp</a>${rows}<span class='lb'>Université d'affectation (managers)</span><select id='rtu'>${uopts}</select><div class='acts' style='flex-wrap:wrap'>${a.email ? btn('ok', '✅ Retenu + e-mail', 'retained', '', '1') : ''}${btn('ok', '✅ Retenu + WhatsApp', 'retained', '', 'w')}${a.email ? btn('ko', '❌ Refusé + e-mail', 'rejected', '', '1') : ''}${btn('ko', '❌ Refusé + WhatsApp', 'rejected', '', 'w')}</div><div class='acts' style='flex-wrap:wrap'>${btn('p', '➕ Manager', 'retained', 'manager', '0')}${btn('p', '➕ Ambassadeur', 'retained', 'ambassador', '0')}</div><p class='mu'><small>Si la personne n'a pas encore de compte, demandez-lui de s'inscrire avec <b>${E(a.email || a.phone)}</b>, puis recliquez sur Manager / Ambassadeur.</small></p><button class='s' style='width:100%;margin-top:6px' data-id='${a.id}' onclick='ADG_RT.reset(this.dataset.id)'>🗑 Supprimer cette tentative (permet de repasser le test avec un nouveau lien)</button><button class='s' style='width:100%;margin-top:8px' onclick='closeModal()'>Fermer</button>`;
     if (typeof openModal === 'function') openModal(html); else alert('Fenêtre indisponible');
   }
 
@@ -193,18 +198,31 @@
     return 'mailto:' + encodeURIComponent(a.email) + '?subject=' + encodeURIComponent(sub) + '&body=' + lines.map(encodeURIComponent).join('%0A');
   }
 
-  function decideBtn(b) { return decide(b.dataset.id, b.dataset.d, b.dataset.r || null, b.dataset.m === '1'); }
+  function decideBtn(b) { return decide(b.dataset.id, b.dataset.d, b.dataset.r || null, b.dataset.m); }
+
+  function waMessage(a, decision) {
+    const first = (a.full_name || '').split(' ')[0];
+    const test = st.tests.find(x => x.id === a.test_id);
+    const role = test ? kindLabel(test.kind) : 'ambassadeur';
+    const app = location.origin + location.pathname;
+    return decision === 'retained'
+      ? `Bonjour ${first}, félicitations ! Vous avez été retenu(e) à l'issue de notre test de recrutement (poste : ${role}). Pour la suite, créez votre compte sur ADG Ambassadeurs avec ce numéro WhatsApp : ${app} — L'équipe Answer Digital`
+      : `Bonjour ${first}, merci d'avoir passé notre test de recrutement. Après étude de votre dossier, nous ne pouvons pas donner suite pour le moment. Nous vous encourageons à retenter votre chance lors de nos prochains recrutements. — L'équipe Answer Digital`;
+  }
 
   async function decide(id, decision, role, mail) {
+    let w = null; if (mail === 'w') w = window.open('', '_blank');
     const a = st.atts.find(x => x.id === id); if (!a) return;
-    if (decision === 'rejected' && !confirm('Marquer ' + a.full_name + ' comme refusé(e) ?')) return;
+    if (decision === 'rejected' && !confirm('Marquer ' + a.full_name + ' comme refusé(e) ?')) { if (w) w.close(); return; }
     const r = await sb.rpc('rt_decide', { p_attempt: id, p_decision: decision, p_role: role, p_univ: ($q('#rtu') || {}).value || null });
+    if (r.error && w) w.close();
     if (r.error) return alert(r.error.message);
-    const m = { ok: 'Décision enregistrée', applied: role === 'manager' ? 'Manager nommé ✔' : 'Ambassadeur confirmé ✔', pending_signup: 'Enregistré. Pas encore de compte avec cet e-mail : la personne doit s\'inscrire avec ' + a.email + ', puis recliquez.', univ_has_manager: 'Cette université a déjà un manager.', need_univ: 'Choisissez d\'abord l\'université d\'affectation.', is_admin: 'Ce compte est administrateur.' }[r.data] || 'OK';
+    const m = { ok: 'Décision enregistrée', applied: role === 'manager' ? 'Manager nommé ✔' : 'Ambassadeur confirmé ✔', pending_signup: 'Enregistré. Pas encore de compte avec cet e-mail : la personne doit s\'inscrire avec ' + (a.email || a.phone) + ', puis recliquez.', univ_has_manager: 'Cette université a déjà un manager.', need_univ: 'Choisissez d\'abord l\'université d\'affectation.', is_admin: 'Ce compte est administrateur.' }[r.data] || 'OK';
     T(m);
     await load(); paint();
     if (typeof closeModal === 'function') closeModal();
-    if (mail) location.href = mailto(a, decision);
+    if (mail === '1') location.href = mailto(a, decision);
+    if (mail === 'w' && w) w.location.href = waLink(a.phone, waMessage(a, decision));
   }
 
   async function reset(id) {
