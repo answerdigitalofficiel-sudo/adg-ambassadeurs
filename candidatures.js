@@ -56,7 +56,7 @@
   function form() {
     view = 'form';
     $q('#app').innerHTML = wrap(`<div class='card'><h2>${E(info.title)}</h2><div class='rcb'>⏳ Candidatures ouvertes jusqu'au <b id='rcd'>${E(fmt(info.closes_at))}</b><br><small id='rcl'></small></div>` +
-      `<form onsubmit='ADG_RC.submit(event)' novalidate>` +
+      `<form onsubmit='ADG_RC.submit(event)' oninput='ADG_RC.save()' onchange='ADG_RC.save()' novalidate>` +
       `<label>Nom *</label><input id='cn' autocomplete='family-name'>` +
       `<label>Post-nom <small>(facultatif)</small></label><input id='cm'>` +
       `<label>Prénom *</label><input id='cp' autocomplete='given-name'>` +
@@ -66,8 +66,14 @@
       `<label>Adresse e-mail <small>(facultative, mais recommandée)</small></label><input id='ce' type='email' autocomplete='email'>` +
       `<label>CV <small>(facultatif · PDF, Word ou image · 5 Mo max)</small></label><input id='cv' type='file' accept='.pdf,.doc,.docx,.jpg,.jpeg,.png'>` +
       `<p id='cer' class='err'></p><button class='p' id='csb'>Envoyer ma candidature</button></form></div>`);
+    restore();
     tick();
   }
+
+  /* Brouillon : les champs déjà tapés survivent à un rechargement de la page (le fichier CV, lui, doit être rechoisi) */
+  const DK = 'adg_rc_draft_' + QA, DIDS = ['cn', 'cm', 'cp', 'ca', 'cb', 'cw', 'ce'];
+  function save() { try { const o = {}; DIDS.forEach(i => { const el = $q('#' + i); if (el) o[i] = el.value; }); localStorage.setItem(DK, JSON.stringify(o)); } catch (e) { /* ignore */ } }
+  function restore() { try { const o = JSON.parse(localStorage.getItem(DK) || '{}'); DIDS.forEach(i => { const el = $q('#' + i); if (el && o[i]) el.value = o[i]; }); } catch (e) { /* ignore */ } }
 
   function errMsg(m) {
     return /NOM_INVALIDE/.test(m) ? 'Entrez votre nom.' : /PRENOM_INVALIDE/.test(m) ? 'Entrez votre prénom.' : /ADRESSE_INVALIDE/.test(m) ? 'Entrez votre adresse complète.' : /DATE_INVALIDE/.test(m) ? 'Entrez une date de naissance valide.' : /TELEPHONE_INVALIDE/.test(m) ? 'Entrez un numéro WhatsApp valide (ex. 0812345678).' : /EMAIL_INVALIDE/.test(m) ? "Cette adresse e-mail n'est pas valide." : /DEJA_CANDIDAT/.test(m) ? 'Une candidature a déjà été envoyée avec ce numéro WhatsApp ou cet e-mail.' : 'Erreur : ' + m;
@@ -101,6 +107,7 @@
       } catch (x) { cvOk = false; }
     }
     busy = false;
+    try { localStorage.removeItem(DK); } catch (x) { /* ignore */ }
     done(v('cp'), cvOk);
   }
 
@@ -265,7 +272,7 @@
 
   window.ADG_RC = {
     isApply: () => !!QA,
-    run, submit,
+    run, submit, save,
     adminHtml: () => '<div id="rcbox">' + (sc.loaded ? render() : '<p class="mu">Chargement…</p>') + '</div>',
     adminMount: () => { load().then(paint); },
     pick, setFilter, setQ, copy, newCall, saveDeadline, addDays, closeNow, delCall, open, setStatus, saveNote, viewCv, delApp
