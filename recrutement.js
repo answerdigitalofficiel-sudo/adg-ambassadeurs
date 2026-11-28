@@ -88,7 +88,7 @@
 
   function done() {
     clearInterval(tick); cur = null;
-    $q('#app').innerHTML = wrap(`<div class='card' style='text-align:center'><h2>✅ Test terminé</h2><p>Merci ! Vos réponses ont été enregistrées. L'équipe Answer Digital vous contactera par e-mail ou sur WhatsApp.</p><p class='mu'><small>Vous pouvez fermer cette page.</small></p></div>`);
+    $q('#app').innerHTML = wrap(`<div class='card' style='text-align:center'><h2>✅ Merci pour votre participation</h2><p>Nous vous remercions pour le temps et l'attention consacrés à ce test. Vos réponses ont bien été enregistrées.</p><p><b>Dès que votre candidature sera acceptée, vous recevrez un e-mail</b> vous invitant à une éventuelle interview.</p><p>Merci de l'intérêt que vous portez à Answer Digital.</p><p class='mu'><small>Vous pouvez fermer cette page.</small></p></div>`);
   }
 
   /* ====================== ONGLET ADMIN ====================== */
