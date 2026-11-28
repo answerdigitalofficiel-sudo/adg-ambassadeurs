@@ -129,10 +129,10 @@
     const tabs = st.tests.map(x => `<button class='${x.id === t.id ? 'p' : 's'}' data-id='${x.id}' onclick='ADG_RT.pickTest(this.dataset.id)'>${x.kind === 'manager' ? '👔 Manager' : '🤝 Ambassadeur'}</button>`).join('');
     let h = `<div class='acts' style='margin-bottom:10px'>${tabs}</div>`;
     h += `<div class='card'><h2>${E(t.title)}</h2><p class='mu'><small>${qs.length} questions · ${Math.ceil(secs / 60)} min · ${t.active ? 'ouvert' : 'fermé'}</small></p><div class='acts'><button class='s' onclick='ADG_RT.toggle()'>${t.active ? 'Fermer ce test' : 'Rouvrir ce test'}</button><button class='p' onclick='ADG_RT.generate()'>🎲 Générer de nouvelles questions</button></div><p class='mu'><small>Répartition actuelle : ${qs.filter(x => x.kind === 'choice').length} à choix multiple, ${qs.filter(x => x.kind === 'text').length} rédigées. La génération garde les 2 questions d'ouverture (⭐) et tire une nouvelle série dans la banque ${kindLabel(t.kind)} (environ 30 % à choix, 70 % rédigées).</small></p></div>`;
-    h += `<div class='card'><h2>Liens à usage unique</h2><p class='mu'><small>Un lien par candidat : il devient caduc dès que le candidat commence le test.</small></p><input id='rtl' placeholder='Destinataire (optionnel, pour vous repérer)'><button class='p' onclick='ADG_RT.newLink()'>➕ Générer et copier un lien</button>`;
+    h += `<div class='card'><h2>Liens à usage unique</h2><p class='mu'><small>Un lien par candidat : il devient caduc dès que le candidat commence le test.</small></p><input id='rtl' placeholder='Destinataire (optionnel, pour vous repérer)'><button class='p' onclick='ADG_RT.newLink()'>➕ Générer et copier un lien</button> <button class='s' onclick='ADG_RT.clearUsed()'>🧹 Effacer les liens utilisés</button>`;
     h += invs.slice(0, 60).map(v => {
       const at = v.attempt_id ? st.atts.find(x => x.id === v.attempt_id) : null;
-      return `<div class='row' style='align-items:center'><div style='flex:1'><b>${E(v.label || 'Sans nom')}</b><br><small class='mu'>${v.used_at ? 'Utilisé' + (at ? ' par ' + E(at.full_name) : '') : 'Disponible'} · ${new Date(v.created_at).toLocaleDateString('fr-FR')}</small></div>${v.used_at ? tag('Utilisé', '#6b7280') : `<button class='p' data-id='${v.id}' onclick='ADG_RT.copyLink(this.dataset.id)'>Copier</button> <button class='ko' data-id='${v.id}' onclick='ADG_RT.delInv(this.dataset.id)'>🗑</button>`}</div>`;
+      return `<div class='row' style='align-items:center'><div style='flex:1'><b>${E(v.label || 'Sans nom')}</b><br><small class='mu'>${v.used_at ? 'Utilisé' + (at ? ' par ' + E(at.full_name) : '') : 'Disponible'} · ${new Date(v.created_at).toLocaleDateString('fr-FR')}</small></div>${v.used_at ? tag('Utilisé', '#6b7280') + ` <button class='ko' data-id='${v.id}' onclick='ADG_RT.delInv(this.dataset.id)'>🗑</button>` : `<button class='p' data-id='${v.id}' onclick='ADG_RT.copyLink(this.dataset.id)'>Copier</button> <button class='ko' data-id='${v.id}' onclick='ADG_RT.delInv(this.dataset.id)'>🗑</button>`}</div>`;
     }).join('') || `<p class='mu'>Aucun lien pour le moment.</p>`;
     h += `</div><div class='card'><h2>Candidats (${atts.length})</h2>`;
     h += atts.slice().sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).map(a => {
@@ -172,7 +172,7 @@
       return `<div class='row' style='align-items:flex-start'><div style='width:100%'><small class='mu'>${qi + 1}. ${E(q.criterion)} · ${dur}</small><br>${E(q.prompt)}<div style='margin-top:6px'>${ans}</div></div></div>`;
     }).join('');
     const btn = (cls, label, d, r, m) => `<button class='${cls}' data-id='${a.id}' data-d='${d}' data-r='${r}' data-m='${m}' onclick='ADG_RT.decideBtn(this)'>${label}</button>`;
-    const html = `<h2>${E(a.full_name)}</h2><p class='mu'><small>${test ? 'Test ' + kindLabel(test.kind) + ' · ' : ''}${E(a.phone)}${a.email ? ' · ' + E(a.email) : ' · pas d\'e-mail'}<br>Score : <b>${a.score == null ? '—' : Math.round(a.score) + '%'}</b> · ${a.leaves} sortie(s) de page</small></p><a class='p' href='${waLink(a.phone)}' target='_blank' rel='noopener' style='display:block;text-align:center;padding:12px;border-radius:12px;text-decoration:none;margin:6px 0 10px'>💬 Ouvrir WhatsApp</a>${rows}<span class='lb'>Université d'affectation (managers)</span><select id='rtu'>${uopts}</select><div class='acts' style='flex-wrap:wrap'>${a.email ? btn('ok', '✅ Retenu + e-mail', 'retained', '', '1') : ''}${btn('ok', '✅ Retenu + WhatsApp', 'retained', '', 'w')}${a.email ? btn('ko', '❌ Refusé + e-mail', 'rejected', '', '1') : ''}${btn('ko', '❌ Refusé + WhatsApp', 'rejected', '', 'w')}</div><div class='acts' style='flex-wrap:wrap'>${btn('p', '➕ Manager', 'retained', 'manager', '0')}${btn('p', '➕ Ambassadeur', 'retained', 'ambassador', '0')}</div><p class='mu'><small>Si la personne n'a pas encore de compte, demandez-lui de s'inscrire avec <b>${E(a.email || a.phone)}</b>, puis recliquez sur Manager / Ambassadeur.</small></p><button class='s' style='width:100%;margin-top:6px' data-id='${a.id}' onclick='ADG_RT.reset(this.dataset.id)'>🗑 Supprimer cette tentative (permet de repasser le test avec un nouveau lien)</button><button class='s' style='width:100%;margin-top:8px' onclick='closeModal()'>Fermer</button>`;
+    const html = `<h2>${E(a.full_name)}</h2><p class='mu'><small>${test ? 'Test ' + kindLabel(test.kind) + ' · ' : ''}${E(a.phone)}${a.email ? ' · ' + E(a.email) : ' · pas d\'e-mail'}<br>Score : <b>${a.score == null ? '—' : Math.round(a.score) + '%'}</b> · ${a.leaves} sortie(s) de page</small></p><a class='p' href='${waLink(a.phone)}' target='_blank' rel='noopener' style='display:block;text-align:center;padding:12px;border-radius:12px;text-decoration:none;margin:6px 0 10px'>💬 Ouvrir WhatsApp</a>${rows}<span class='lb'>Université d'affectation (managers)</span><select id='rtu'>${uopts}</select><div class='acts' style='flex-wrap:wrap'>${a.email ? btn('ok', '✅ Retenu + e-mail', 'retained', '', '1') : ''}${btn('ok', '✅ Retenu + WhatsApp', 'retained', '', 'w')}${a.email ? btn('ko', '❌ Refusé + e-mail', 'rejected', '', '1') : ''}${btn('ko', '❌ Refusé + WhatsApp', 'rejected', '', 'w')}</div><div class='acts' style='flex-wrap:wrap'>${btn('p', '➕ Manager', 'retained', 'manager', '0')}${btn('p', '➕ Ambassadeur', 'retained', 'ambassador', '0')}</div><p class='mu'><small>Si la personne n'a pas encore de compte, demandez-lui de s'inscrire avec <b>${E(a.email || a.phone)}</b>, puis recliquez sur Manager / Ambassadeur.</small></p><button class='s' style='width:100%;margin-top:6px' data-id='${a.id}' onclick='ADG_RT.reset(this.dataset.id)'>🗑 Supprimer ce candidat définitivement (coordonnées, réponses et lien)</button><button class='s' style='width:100%;margin-top:8px' onclick='closeModal()'>Fermer</button>`;
     if (typeof openModal === 'function') openModal(html); else alert('Fenêtre indisponible');
   }
 
@@ -226,7 +226,8 @@
   }
 
   async function reset(id) {
-    if (!confirm('Supprimer définitivement cette tentative et ses réponses ?')) return;
+    if (!confirm('Supprimer définitivement ce candidat : ses coordonnées, ses réponses et son lien ? Cette action est irréversible.')) return;
+    await sb.from('rt_invites').delete().eq('attempt_id', id);
     const r = await sb.from('rt_attempts').delete().eq('id', id);
     if (r.error) return alert(r.error.message);
     if (typeof closeModal === 'function') closeModal();
@@ -246,7 +247,15 @@
     await reload();
   }
   async function copyLink(id) { const v = st.invs.find(x => x.id === id); if (v && await copyText(linkOf(v))) T('Lien copié'); }
-  async function delInv(id) { if (!confirm('Supprimer ce lien ?')) return; const r = await sb.from('rt_invites').delete().eq('id', id); if (r.error) return alert(r.error.message); await reload(); }
+  async function delInv(id) { const v0 = st.invs.find(x => x.id === id); if (!confirm(v0 && v0.used_at ? `Supprimer ce lien déjà utilisé ? Il disparaît de la liste, mais la tentative du candidat n'est pas supprimée.` : 'Supprimer ce lien ?')) return; const r = await sb.from('rt_invites').delete().eq('id', id); if (r.error) return alert(r.error.message); await reload(); }
+
+  async function clearUsed() {
+    const t = curTest();
+    if (!confirm('Effacer tous les liens déjà utilisés de ce test ? Les candidats et leurs réponses ne sont pas supprimés.')) return;
+    const r = await sb.from('rt_invites').delete().eq('test_id', t.id).not('used_at', 'is', null);
+    if (r.error) return alert(r.error.message);
+    T('Liens utilisés effacés'); await reload();
+  }
 
   async function secs(id, v) { const n = parseInt(v, 10); if (!(n >= 10 && n <= 900)) return alert('Entre 10 et 900 secondes.'); const r = await sb.from('rt_questions').update({ seconds: n }).eq('id', id); if (r.error) return alert(r.error.message); T('Durée mise à jour'); await load(); }
   async function delQ(id) { if (!confirm('Supprimer cette question ?')) return; const r = await sb.from('rt_questions').delete().eq('id', id); if (r.error) return alert(r.error.message); await reload(); }
@@ -284,6 +293,6 @@
     run, start, pick, submit,
     adminHtml: () => '<div id="rtbox">' + (st.loaded ? render() : '<p class="mu">Chargement…</p>') + '</div>',
     adminMount: () => { load().then(paint); },
-    open, generate, gradeBtn, decideBtn, reset, pickTest, toggle, newLink, copyLink, delInv, secs, delQ, addQ
+    open, generate, clearUsed, gradeBtn, decideBtn, reset, pickTest, toggle, newLink, copyLink, delInv, secs, delQ, addQ
   };
 })();
