@@ -120,11 +120,11 @@
     const t = curTest();
     if (!t) return `<div class='card'><p class='mu'>Aucun test trouvé.</p></div>`;
     st.sel = t.id;
-    const qs = st.qs.filter(x => x.test_id === t.id), invs = st.invs.filter(x => x.test_id === t.id), atts = st.atts.filter(x => x.test_id === t.id);
+    const qs = st.qs.filter(x => x.test_id === t.id && x.active !== false), invs = st.invs.filter(x => x.test_id === t.id), atts = st.atts.filter(x => x.test_id === t.id);
     const secs = qs.reduce((a, x) => a + x.seconds, 0);
     const tabs = st.tests.map(x => `<button class='${x.id === t.id ? 'p' : 's'}' data-id='${x.id}' onclick='ADG_RT.pickTest(this.dataset.id)'>${x.kind === 'manager' ? '👔 Manager' : '🤝 Ambassadeur'}</button>`).join('');
     let h = `<div class='acts' style='margin-bottom:10px'>${tabs}</div>`;
-    h += `<div class='card'><h2>${E(t.title)}</h2><p class='mu'><small>${qs.length} questions · ${Math.ceil(secs / 60)} min · ${t.active ? 'ouvert' : 'fermé'}</small></p><div class='acts'><button class='s' onclick='ADG_RT.toggle()'>${t.active ? 'Fermer ce test' : 'Rouvrir ce test'}</button></div></div>`;
+    h += `<div class='card'><h2>${E(t.title)}</h2><p class='mu'><small>${qs.length} questions · ${Math.ceil(secs / 60)} min · ${t.active ? 'ouvert' : 'fermé'}</small></p><div class='acts'><button class='s' onclick='ADG_RT.toggle()'>${t.active ? 'Fermer ce test' : 'Rouvrir ce test'}</button><button class='p' onclick='ADG_RT.generate()'>🎲 Générer de nouvelles questions</button></div><p class='mu'><small>Répartition actuelle : ${qs.filter(x => x.kind === 'choice').length} à choix multiple, ${qs.filter(x => x.kind === 'text').length} rédigées. La génération garde les 2 questions d'ouverture (⭐) et tire une nouvelle série dans la banque ${kindLabel(t.kind)} (environ 30 % à choix, 70 % rédigées).</small></p></div>`;
     h += `<div class='card'><h2>Liens à usage unique</h2><p class='mu'><small>Un lien par candidat : il devient caduc dès que le candidat commence le test.</small></p><input id='rtl' placeholder='Destinataire (optionnel, pour vous repérer)'><button class='p' onclick='ADG_RT.newLink()'>➕ Générer et copier un lien</button>`;
     h += invs.slice(0, 60).map(v => {
       const at = v.attempt_id ? st.atts.find(x => x.id === v.attempt_id) : null;
@@ -138,8 +138,8 @@
       return `<div class='row' style='align-items:flex-start;cursor:pointer' data-id='${a.id}' onclick='ADG_RT.open(this.dataset.id)'><div><b>${E(a.full_name)}</b><br><small>${E(a.phone)} · ${E(a.email)}</small><br><small>${u ? E(u) + ' · ' : ''}${a.status === 'finished' ? 'terminé' : 'en cours'} · ${a.leaves} sortie(s) de page${need ? ' · ✍️ à noter' : ''}</small></div><div style='text-align:right'><b style='font-size:20px'>${a.score == null ? '—' : Math.round(a.score) + '%'}</b><br>${dec}</div></div>`;
     }).join('') || `<p class='mu'>Aucun candidat pour le moment.</p>`;
     h += `</div><div class='card'><h2>Questions</h2>`;
-    h += qs.map(x => `<div class='row' style='align-items:flex-start'><div style='flex:1'><small class='mu'>${x.position}. ${E(x.criterion)} · ${x.kind === 'choice' ? 'choix' : 'texte'} · ${x.points} pts</small><br>${E(x.prompt)}</div><div style='min-width:84px;text-align:right'><input type='number' min='10' max='900' value='${x.seconds}' style='width:70px' data-id='${x.id}' onchange='ADG_RT.secs(this.dataset.id,this.value)'> s<br><button class='ko' data-id='${x.id}' onclick='ADG_RT.delQ(this.dataset.id)'>🗑</button></div></div>`).join('');
-    h += `<details style='margin-top:10px'><summary><b>➕ Ajouter une question</b></summary><form onsubmit='ADG_RT.addQ(event)'><input id='qc' placeholder='Critère visé (ex. Leadership)' required><textarea id='qp' placeholder='Question' required></textarea><select id='qk'><option value='choice'>Choix multiple</option><option value='text'>Réponse écrite (notée à la main)</option></select><textarea id='qo' placeholder='Choix : un par ligne (pour le choix multiple)'></textarea><input id='qr' type='number' min='1' placeholder='N° de la bonne réponse (1, 2, 3…)'><input id='qs' type='number' min='10' max='900' value='45' placeholder='Durée en secondes'><input id='qt' type='number' min='1' value='10' placeholder='Points'><button class='p'>Ajouter</button></form></details></div>`;
+    h += qs.map((x, i) => `<div class='row' style='align-items:flex-start'><div style='flex:1'><small class='mu'>${i + 1}. ${x.core ? '⭐ ' : ''}${E(x.criterion)} · ${x.kind === 'choice' ? 'choix' : 'texte'} · ${x.points} pts</small><br>${E(x.prompt)}</div><div style='min-width:84px;text-align:right'><input type='number' min='10' max='900' value='${x.seconds}' style='width:70px' data-id='${x.id}' onchange='ADG_RT.secs(this.dataset.id,this.value)'> s<br><button class='ko' data-id='${x.id}' onclick='ADG_RT.delQ(this.dataset.id)'>🗑</button></div></div>`).join('');
+    h += `<details style='margin-top:10px'><summary><b>➕ Ajouter une question</b></summary><form onsubmit='ADG_RT.addQ(event)'><input id='qc' placeholder='Critère visé (ex. Leadership)' required><textarea id='qp' placeholder='Question' required></textarea><select id='qk'><option value='choice'>Choix multiple</option><option value='text'>Réponse écrite (notée à la main)</option></select><textarea id='qo' placeholder='Choix : un par ligne (pour le choix multiple)'></textarea><input id='qr' type='number' min='1' placeholder='N° de la bonne réponse (1, 2, 3…)'><input id='qs' type='number' min='10' max='900' value='45' placeholder='Durée en secondes'><input id='qt' type='number' min='1' value='10' placeholder='Points'><label style='display:block;margin:8px 0'><input type='checkbox' id='qb' style='width:auto'> Ajouter aussi à la banque de génération</label><button class='p'>Ajouter</button></form></details></div>`;
     return h;
   }
 
@@ -149,12 +149,12 @@
   function open(id) {
     const a = st.atts.find(x => x.id === id); if (!a) return;
     const test = st.tests.find(x => x.id === a.test_id);
-    const qs = st.qs.filter(x => x.test_id === a.test_id);
+    const qs = st.qs.filter(x => x.test_id === a.test_id && (x.active !== false || st.ans.some(r => r.attempt_id === a.id && r.question_id === x.id)));
     const list = (typeof D !== 'undefined' && D.univ || []).filter(u => u.active !== false);
     const uopts = '<option value="">— Université —</option>' + list.map(u => `<option value='${E(u.id)}'${u.id === a.university_id ? ' selected' : ''}>${E(u.name)}</option>`).join('');
-    const rows = qs.map(q => {
+    const rows = qs.map((q, qi) => {
       const r = st.ans.find(x => x.attempt_id === a.id && x.question_id === q.id);
-      if (!r) return `<div class='row'><div><small class='mu'>${q.position}. ${E(q.criterion)}</small><br>${E(q.prompt)}<br><small class='mu'>Non posée</small></div></div>`;
+      if (!r) return `<div class='row'><div><small class='mu'>${qi + 1}. ${E(q.criterion)}</small><br>${E(q.prompt)}<br><small class='mu'>Non posée</small></div></div>`;
       let ans;
       if (q.kind === 'choice') {
         const i = r.answer === '' || r.answer == null ? null : parseInt(r.answer, 10);
@@ -164,7 +164,7 @@
           (r.late ? '' : `<div style='margin-top:6px'>Note : <input type='number' min='0' max='${q.points}' step='0.5' value='${r.score == null ? '' : r.score}' style='width:70px' id='g-${r.id}'> / ${q.points} <button class='s' data-a='${r.id}' data-t='${a.id}' onclick='ADG_RT.gradeBtn(this)'>Noter</button></div>`);
       }
       const dur = r.late ? 'hors délai' : Math.max(0, Math.round((new Date(r.answered_at) - new Date(r.served_at)) / 1000)) + ' s / ' + q.seconds + ' s';
-      return `<div class='row' style='align-items:flex-start'><div style='width:100%'><small class='mu'>${q.position}. ${E(q.criterion)} · ${dur}</small><br>${E(q.prompt)}<div style='margin-top:6px'>${ans}</div></div></div>`;
+      return `<div class='row' style='align-items:flex-start'><div style='width:100%'><small class='mu'>${qi + 1}. ${E(q.criterion)} · ${dur}</small><br>${E(q.prompt)}<div style='margin-top:6px'>${ans}</div></div></div>`;
     }).join('');
     const btn = (cls, label, d, r, m) => `<button class='${cls}' data-id='${a.id}' data-d='${d}' data-r='${r}' data-m='${m}' onclick='ADG_RT.decideBtn(this)'>${label}</button>`;
     const html = `<h2>${E(a.full_name)}</h2><p class='mu'><small>${test ? 'Test ' + kindLabel(test.kind) + ' · ' : ''}${E(a.phone)} · ${E(a.email)}<br>Score : <b>${a.score == null ? '—' : Math.round(a.score) + '%'}</b> · ${a.leaves} sortie(s) de page</small></p>${rows}<span class='lb'>Université d'affectation (managers)</span><select id='rtu'>${uopts}</select><div class='acts' style='flex-wrap:wrap'>${btn('ok', '✅ Retenu + e-mail', 'retained', '', '1')}${btn('ko', '❌ Refusé + e-mail', 'rejected', '', '1')}</div><div class='acts' style='flex-wrap:wrap'>${btn('p', '➕ Manager', 'retained', 'manager', '0')}${btn('p', '➕ Ambassadeur', 'retained', 'ambassador', '0')}</div><p class='mu'><small>Si la personne n'a pas encore de compte, demandez-lui de s'inscrire avec <b>${E(a.email)}</b>, puis recliquez sur Manager / Ambassadeur.</small></p><button class='s' style='width:100%;margin-top:6px' data-id='${a.id}' onclick='ADG_RT.reset(this.dataset.id)'>🗑 Supprimer cette tentative (permet de repasser le test avec un nouveau lien)</button><button class='s' style='width:100%;margin-top:8px' onclick='closeModal()'>Fermer</button>`;
@@ -241,7 +241,17 @@
     const pos = st.qs.filter(x => x.test_id === t.id).reduce((m, x) => Math.max(m, x.position), 0) + 1;
     const r = await sb.from('rt_questions').insert({ test_id: t.id, position: pos, criterion: $q('#qc').value.trim(), prompt: $q('#qp').value.trim(), kind, options: kind === 'choice' ? opts : [], correct: kind === 'choice' ? corr - 1 : null, seconds: parseInt($q('#qs').value, 10) || 45, points: parseInt($q('#qt').value, 10) || 10 });
     if (r.error) return alert(r.error.message);
+    if ($q('#qb') && $q('#qb').checked) { await sb.from('rt_bank').insert({ kind: t.kind, criterion: $q('#qc').value.trim(), prompt: $q('#qp').value.trim(), qkind: kind, options: kind === 'choice' ? opts : [], correct: kind === 'choice' ? corr - 1 : null, seconds: parseInt($q('#qs').value, 10) || 45, points: parseInt($q('#qt').value, 10) || 10 }); }
     T('Question ajoutée'); await reload();
+  }
+
+  async function generate() {
+    const t = curTest();
+    if (!confirm(`Générer une nouvelle série de questions pour le test ${kindLabel(t.kind)} ? Les 2 questions d'ouverture sont conservées, les autres sont remplacées par une nouvelle sélection (environ 30 % à choix, 70 % rédigées). Les réponses déjà enregistrées ne sont pas touchées.`)) return;
+    const r = await sb.rpc('rt_generate', { p_test: t.id });
+    if (r.error) return alert(r.error.message);
+    T(r.data + ' nouvelles questions générées');
+    await reload();
   }
 
   /* Rafraîchissement automatique de l'onglet (nouveaux candidats) */
@@ -256,6 +266,6 @@
     run, start, pick, submit,
     adminHtml: () => '<div id="rtbox">' + (st.loaded ? render() : '<p class="mu">Chargement…</p>') + '</div>',
     adminMount: () => { load().then(paint); },
-    open, gradeBtn, decideBtn, reset, pickTest, toggle, newLink, copyLink, delInv, secs, delQ, addQ
+    open, generate, gradeBtn, decideBtn, reset, pickTest, toggle, newLink, copyLink, delInv, secs, delQ, addQ
   };
 })();
