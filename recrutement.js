@@ -26,8 +26,16 @@
   }
 
   function intro(info) {
-    $q('#app').innerHTML = wrap(`<div class='card'><h2>${E(info.title)}</h2><p><b>${info.count} questions</b> · environ ${Math.ceil(info.seconds / 60)} minutes au total.</p><ul style='padding-left:18px;line-height:1.6'><li>Ce lien est <b>à usage unique</b> : il devient invalide dès que vous commencez.</li><li>Chaque question a <b>son propre chrono</b> : le temps écoulé, la réponse n'est plus acceptée.</li><li>Pas de retour en arrière. Une seule tentative.</li><li>Ne quittez pas la page : chaque sortie est enregistrée.</li><li>Répondez seul(e), avec vos propres mots.</li></ul><form onsubmit='ADG_RT.start(event)' novalidate><input id='rn' placeholder='Nom complet (nom et prénom) *' required autocomplete='name'><input id='rp' type='tel' inputmode='tel' placeholder='Numéro WhatsApp * (ex. 0812345678)' required autocomplete='tel'><input id='re' type='email' placeholder='Adresse e-mail (facultative si vous avez WhatsApp)' autocomplete='email'><p class='mu'><small>* Obligatoire. Sans e-mail, votre numéro WhatsApp suffit.</small></p><p id='rer' class='err'></p><button class='p'>Commencer le test</button></form></div>`);
+    $q('#app').innerHTML = wrap(`<div class='card'><h2>${E(info.title)}</h2><p><b>${info.count} questions</b> · environ ${Math.ceil(info.seconds / 60)} minutes au total.</p><ul style='padding-left:18px;line-height:1.6'><li>Ce lien est <b>à usage unique</b> : il devient invalide dès que vous commencez.</li><li>Chaque question a <b>son propre chrono</b> : le temps écoulé, la réponse n'est plus acceptée.</li><li>Pas de retour en arrière. Une seule tentative.</li><li>Ne quittez pas la page : chaque sortie est enregistrée.</li><li>Répondez seul(e), avec vos propres mots.</li></ul><form onsubmit='ADG_RT.start(event)' oninput='ADG_RT.saveDraft()' onchange='ADG_RT.saveDraft()' novalidate><input id='rn' placeholder='Nom complet (nom et prénom) *' required autocomplete='name'><input id='rp' type='tel' inputmode='tel' placeholder='Numéro WhatsApp * (ex. 0812345678)' required autocomplete='tel'><input id='re' type='email' placeholder='Adresse e-mail (facultative si vous avez WhatsApp)' autocomplete='email'><p class='mu'><small>* Obligatoire. Sans e-mail, votre numéro WhatsApp suffit.</small></p><p id='rer' class='err'></p><button class='p'>Commencer le test</button></form></div>`);
+    restoreDraft();
   }
+
+  /* Brouillons : coordonnées et réponses déjà tapées survivent à un rechargement de la page */
+  const DK = 'adg_rt_draft_' + Q;
+  function saveDraft() { try { localStorage.setItem(DK, JSON.stringify({ rn: $q('#rn').value, rp: $q('#rp').value, re: $q('#re').value })); } catch (e) { /* ignore */ } }
+  function restoreDraft() { try { const o = JSON.parse(localStorage.getItem(DK) || '{}'); ['rn', 'rp', 're'].forEach(i => { const el = $q('#' + i); if (el && o[i]) el.value = o[i]; }); } catch (e) { /* ignore */ } }
+  const AK = qid => 'adg_rt_ans_' + Q + '_' + qid;
+  function saveAns() { try { if (cur) localStorage.setItem(AK(cur.qid), cur.kind === 'choice' ? String(cur.sel == null ? '' : cur.sel) : ($q('#rta') ? $q('#rta').value : '')); } catch (e) { /* ignore */ } }
 
   async function start(e) {
     e.preventDefault();
@@ -44,6 +52,7 @@
       return;
     }
     localStorage.setItem(KEY, r.data);
+    try { localStorage.removeItem(DK); } catch (x) { /* ignore */ }
     next(r.data);
   }
 
@@ -60,8 +69,9 @@
     const q = cur; q.end = Date.now() + q.seconds * 1000;
     const body = q.kind === 'choice'
       ? q.options.map((o, i) => `<button type='button' class='rto' onclick='ADG_RT.pick(${i})'>${E(o)}</button>`).join('')
-      : `<textarea id='rta' placeholder='Votre réponse…' onpaste='return false' ondrop='return false'></textarea>`;
+      : `<textarea id='rta' placeholder='Votre réponse…' oninput='ADG_RT.saveAns()' onpaste='return false' ondrop='return false'></textarea>`;
     $q('#app').innerHTML = wrap(`<div class='card'><div style='display:flex;justify-content:space-between;align-items:center'><small>Question ${q.index} / ${q.total}</small><span class='rtt' id='rtt'>${mmss(q.seconds)}</span></div><div class='rtbar' id='rtb'><i id='rti' style='width:100%'></i></div><p class='rtq'>${E(q.prompt)}</p>${body}<button class='p' id='rtv' onclick='ADG_RT.submit(false)' style='margin-top:10px'>Valider et passer à la suite</button></div>`);
+    try { const sv = localStorage.getItem(AK(q.qid)); if (sv) { if (q.kind === 'choice') pick(parseInt(sv, 10)); else if ($q('#rta')) $q('#rta').value = sv; } } catch (e) { /* ignore */ }
     tick = setInterval(() => {
       const left = Math.max(0, Math.ceil((q.end - Date.now()) / 1000));
       const t = $q('#rtt'), i = $q('#rti'), b = $q('#rtb');
@@ -74,7 +84,7 @@
 
   function pick(i) {
     if (!cur) return;
-    cur.sel = i;
+    cur.sel = i; saveAns();
     document.querySelectorAll('.rto').forEach((b, k) => b.classList.toggle('on', k === i));
   }
 
@@ -84,6 +94,7 @@
     const q = cur;
     const ans = q.kind === 'choice' ? (q.sel == null ? '' : String(q.sel)) : ($q('#rta') ? $q('#rta').value : '');
     const v = $q('#rtv'); if (v) v.disabled = true;
+    try { localStorage.removeItem(AK(q.qid)); } catch (x) { /* ignore */ }
     try { await sb.rpc('rt_answer', { p_secret: q.sec, p_qid: q.qid, p_answer: ans }); } catch (e) { /* le serveur clôturera la question */ }
     busy = false; cur = null;
     next(q.sec);
@@ -290,7 +301,7 @@
 
   window.ADG_RT = {
     isTest: () => !!Q,
-    run, start, pick, submit,
+    run, start, pick, submit, saveDraft, saveAns,
     adminHtml: () => '<div id="rtbox">' + (st.loaded ? render() : '<p class="mu">Chargement…</p>') + '</div>',
     adminMount: () => { load().then(paint); },
     open, generate, clearUsed, gradeBtn, decideBtn, reset, pickTest, toggle, newLink, copyLink, delInv, secs, delQ, addQ
